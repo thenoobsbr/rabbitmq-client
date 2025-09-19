@@ -16,6 +16,9 @@ public record AmqpQueueName
     public static implicit operator AmqpQueueName(string queueName) => Create(queueName);
     public static implicit operator string(AmqpQueueName queueName) => queueName.Value;
 
+    public AmqpQueueName DeadLetterQueueName() => Create($"dlq-{Value}");
+    public AmqpQueueName ScheduledQueueName(TimeSpan delay) => Create($"sch-{Value}-{delay.TotalSeconds}s");
+
     public static Result<AmqpQueueName> Create(string value)
     {
         if (string.IsNullOrWhiteSpace(value))

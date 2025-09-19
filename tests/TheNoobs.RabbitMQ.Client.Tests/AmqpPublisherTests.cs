@@ -38,13 +38,13 @@ public class AmqpPublisherTests(ITestOutputHelper output)
             CancellationToken.None));
         var messageCount = await channel.MessageCountAsync(randomQueue);
         var message = await channel.BasicGetAsync(randomQueue, true);
-        var messageContentResult = serializer.Deserialize<TestMessage>(message!.Body.Span);
+        var messageContentResult = serializer.Deserialize(typeof(TestMessage), message!.Body.Span);
         
         result.IsSuccess.ShouldBeTrue();
         messageCount.ShouldBe<uint>(1);
         message.ShouldNotBeNull();
         messageContentResult.IsSuccess.ShouldBeTrue();
-        messageContentResult.Value.Message.ShouldBe("Test message");
+        messageContentResult.GetValue<TestMessage>().Value.Message.ShouldBe("Test message");
     }
 
     class TestMessage

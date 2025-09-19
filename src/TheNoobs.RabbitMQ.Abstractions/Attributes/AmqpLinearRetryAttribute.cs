@@ -1,8 +1,7 @@
-using TheNoobs.RabbitMQ.Abstractions.Attributes;
 using TheNoobs.Results;
 using TheNoobs.Results.Types;
 
-namespace TheNoobs.RabbitMQ.Abstractions.RetryBehaviors;
+namespace TheNoobs.RabbitMQ.Abstractions.Attributes;
 
 public class AmqpLinearRetryAttribute : AmqpRetryAttribute
 {

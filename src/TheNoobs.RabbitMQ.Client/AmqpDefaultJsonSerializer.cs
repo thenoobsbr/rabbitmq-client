@@ -18,9 +18,9 @@ public class AmqpDefaultJsonSerializer : IAmqpSerializer
         return JsonSerializer.SerializeToUtf8Bytes(value, _options);
     }
 
-    public Result<T> Deserialize<T>(ReadOnlySpan<byte> value)
+    public Result<object> Deserialize(Type type, ReadOnlySpan<byte> value)
     {
-        var result = JsonSerializer.Deserialize<T>(value, _options);
+        var result = JsonSerializer.Deserialize(value, type, _options);
         if (ReferenceEquals(result, null))
         {
             return new ServerErrorFail("Failed to deserialize message");
