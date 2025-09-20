@@ -54,7 +54,7 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
             }
 
             var method = handler.GetType().GetMethod(nameof(IAmqpConsumer<object>.HandleAsync), [
-                request.GetType(),
+                request.Value.GetType(),
                 typeof(CancellationToken)
             ]);
 
@@ -150,8 +150,15 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
         if (retryResult.IsSuccess)
         {
             var scheduleQueueName = _consumerConfiguration.QueueName.ScheduledQueueName(retryResult.Value);
+            
+            var arguments = new Dictionary<string, object?>();
+            
+            arguments.Add("x-dead-letter-exchange", "");
+            arguments.Add("x-dead-letter-routing-key", _consumerConfiguration.QueueName.Value);
+            arguments.Add("x-message-ttl", retryResult.Value.TotalMilliseconds);
+            
             await _channel.QueueDeclareAsync(scheduleQueueName.Value, true, false,
-                false);
+                false, arguments);
             basicProperties.Headers ??= new Dictionary<string, object?>();
             basicProperties.Headers.Add("x-attempt", attempt + 1);
             await _channel.BasicPublishAsync(
@@ -203,7 +210,22 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
     {
         return connectionFactory.CreateConnectionAsync(cancellationToken)
             .BindAsync(x => CreateChannelAsync(x.Value, cancellationToken))
-            .BindAsync<IChannel, AmqpConsumer>(x => new AmqpConsumer(x.Value, serializer, consumerConfiguration, serviceScopeFactory));
+            .BindAsync(x => CreateQueueAsync(x.Value, consumerConfiguration, cancellationToken))
+            .BindAsync<Void, AmqpConsumer>(x => new AmqpConsumer(x.GetValue<IChannel>().Value, serializer, consumerConfiguration, serviceScopeFactory));
+    }
+
+    private static async ValueTask<Result<Void>> CreateQueueAsync(IChannel channel,
+        IAmqpConsumerConfiguration consumerConfiguration, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await channel.QueueDeclareAsync(consumerConfiguration.QueueName, true, false, false, cancellationToken: cancellationToken);
+            return Void.Value;
+        }
+        catch (Exception ex)
+        {
+            return new ServerErrorFail("Failed to create the queue", exception: ex);
+        }
     }
 
     private static async ValueTask<Result<IChannel>> CreateChannelAsync(IConnection connection, CancellationToken cancellationToken)

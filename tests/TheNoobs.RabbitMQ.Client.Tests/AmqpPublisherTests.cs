@@ -4,6 +4,7 @@ using Shouldly;
 using Testcontainers.RabbitMq;
 using Testcontainers.Xunit;
 using TheNoobs.RabbitMQ.Abstractions;
+using TheNoobs.RabbitMQ.Client.Tests.Stubs;
 using TheNoobs.Results.Extensions;
 using Xunit.Abstractions;
 
@@ -28,7 +29,7 @@ public class AmqpPublisherTests(ITestOutputHelper output)
         await channel.QueueDeclareAsync(randomQueue, false, false, false);
         
         var publisher = new AmqpPublisher(amqpConnectionFactory, serializer);
-        var result = await AmqpMessage<TestMessage>.Create(new TestMessage()
+        var result = await AmqpMessage<StubMessage>.Create(new StubMessage()
             {
                 Message = "Test message"
             }).BindAsync(x => publisher.PublishAsync(
@@ -38,17 +39,12 @@ public class AmqpPublisherTests(ITestOutputHelper output)
             CancellationToken.None));
         var messageCount = await channel.MessageCountAsync(randomQueue);
         var message = await channel.BasicGetAsync(randomQueue, true);
-        var messageContentResult = serializer.Deserialize(typeof(TestMessage), message!.Body.Span);
+        var messageContentResult = serializer.Deserialize(typeof(StubMessage), message!.Body.Span);
         
         result.IsSuccess.ShouldBeTrue();
         messageCount.ShouldBe<uint>(1);
         message.ShouldNotBeNull();
         messageContentResult.IsSuccess.ShouldBeTrue();
-        messageContentResult.GetValue<TestMessage>().Value.Message.ShouldBe("Test message");
-    }
-
-    class TestMessage
-    {
-        public string Message { get; set; } = string.Empty;
+        messageContentResult.GetValue<StubMessage>().Value.Message.ShouldBe("Test message");
     }
 }
