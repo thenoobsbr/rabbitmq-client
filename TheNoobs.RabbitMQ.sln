@@ -13,6 +13,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TheNoobs.RabbitMQ.Client.Tests", "tests\TheNoobs.RabbitMQ.Client.Tests\TheNoobs.RabbitMQ.Client.Tests.csproj", "{D39665A9-F066-486B-8F8A-7F85F65FC894}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionFolder", "SolutionFolder", "{9D87F08C-DE81-450E-8DFE-EC58375C08D5}"
+	ProjectSection(SolutionItems) = preProject
+		.devops\azuredevops.yml = .devops\azuredevops.yml
+		.devops\variables.yml = .devops\variables.yml
+		README.md = README.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
