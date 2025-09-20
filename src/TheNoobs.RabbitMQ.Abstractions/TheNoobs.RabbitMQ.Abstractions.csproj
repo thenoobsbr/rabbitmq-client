@@ -2,8 +2,30 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <ImplicitUsings>true</ImplicitUsings>
+    <IsPackable>true</IsPackable>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <OutputType>library</OutputType>
+    <GenerateFullPaths>true</GenerateFullPaths>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+  <PropertyGroup>
+    <Authors>The Noobs</Authors>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <RepositoryType>GIT</RepositoryType>
+    <LangVersion>default</LangVersion>
+    <PackageIcon>icon.png</PackageIcon>
+
+    <PackageId>TheNoobs.RabbitMQ.Abstractions</PackageId>
+    <Description>The RabbitMQ client abstractions for .NET</Description>
+    <PackageProjectUrl>https://github.com/thenoobsbr/rabbitmq-client</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/thenoobsbr/rabbitmq-client</RepositoryUrl>
+    <PackageTags>dotnet; rabbitmq; amqp</PackageTags>
+
+    <UserSecretsId>{64B3196C-FB3A-4270-A658-B7E53E73ADAE}</UserSecretsId>
+    <ProjectGuid>{BB502C3B-4648-4EEE-8009-DE8AB28C0899}</ProjectGuid>
   </PropertyGroup>
 
   <ItemGroup>

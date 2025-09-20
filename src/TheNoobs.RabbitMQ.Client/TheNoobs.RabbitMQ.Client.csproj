@@ -2,9 +2,35 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <ImplicitUsings>true</ImplicitUsings>
+    <IsPackable>true</IsPackable>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <OutputType>library</OutputType>
+    <GenerateFullPaths>true</GenerateFullPaths>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
+  <PropertyGroup>
+    <Authors>The Noobs</Authors>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <RepositoryType>GIT</RepositoryType>
+    <LangVersion>default</LangVersion>
+    <PackageIcon>icon.png</PackageIcon>
+
+    <PackageId>TheNoobs.RabbitMQ.Client</PackageId>
+    <Description>The RabbitMQ client for .NET</Description>
+    <PackageProjectUrl>https://github.com/thenoobsbr/rabbitmq-client</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/thenoobsbr/rabbitmq-client</RepositoryUrl>
+    <PackageTags>dotnet; rabbitmq; amqp</PackageTags>
+
+    <UserSecretsId>{3347D1AD-2DB1-4CC4-8282-7CBE6D60F54F}</UserSecretsId>
+    <ProjectGuid>{437B2960-7381-47D2-9F21-A380539B8F62}</ProjectGuid>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <None Include="..\..\images\icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\TheNoobs.RabbitMQ.Abstractions\TheNoobs.RabbitMQ.Abstractions.csproj" />
