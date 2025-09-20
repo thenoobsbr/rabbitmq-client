@@ -45,10 +45,11 @@ services.AddRabbitMq(config =>
 // Implement a consumer
 public class MyConsumer : IAmqpConsumer<MyMessage>
 {
-    public Task ConsumeAsync(MyMessage message, CancellationToken cancellationToken)
+    public async ValueTask<Result<Void>> HandleAsync(MyMessage message, CancellationToken cancellationToken)
     {
         // Handle message
-        return Task.CompletedTask;
+        
+        return Void.Value;
     }
 }
 ```
