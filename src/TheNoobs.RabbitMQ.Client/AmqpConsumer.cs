@@ -84,18 +84,9 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
 
                 return;
             }
-
-            switch (result.Fail)
-            {
-                case ServerErrorFail:
-                case ThirdPartyServiceErrorFail:
-                case ResourceLockedFail:
-                    await _channel.BasicNackAsync(deliveryTag, false, true, cancellationToken);
-                    return;
-                default:
-                    await SendToDeadLetterAsync(properties, body, result.Fail);
-                    return;
-            }
+            
+            await SendToDeadLetterAsync(properties, body, result.Fail);
+            await _channel.BasicNackAsync(deliveryTag, false, false, cancellationToken);
         }
         catch
         {
@@ -155,7 +146,7 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
             
             arguments.Add("x-dead-letter-exchange", "");
             arguments.Add("x-dead-letter-routing-key", _consumerConfiguration.QueueName.Value);
-            arguments.Add("x-message-ttl", retryResult.Value.TotalMilliseconds);
+            arguments.Add("x-message-ttl", (int)retryResult.Value.TotalMilliseconds);
             
             await _channel.QueueDeclareAsync(scheduleQueueName.Value, true, false,
                 false, arguments);
@@ -170,13 +161,13 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
             return Void.Value;
         }
 
-        if (retryResult.Fail is BadRequestFail && retry.SendToDeadLetter)
+        if (retryResult.Fail is NoAttemptsAvailable && retry.SendToDeadLetter)
         {
             await SendToDeadLetterAsync(properties, body, fail);
             return Void.Value;
         }
 
-        if (retryResult.Fail is BadRequestFail && !retry.SendToDeadLetter)
+        if (retryResult.Fail is NoAttemptsAvailable && !retry.SendToDeadLetter)
         {
             return Void.Value;
         }

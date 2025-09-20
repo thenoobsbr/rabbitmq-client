@@ -12,7 +12,7 @@ public class AmqpLinearRetryAttribute : AmqpRetryAttribute
     {
         if (MaxAttempts is not null && attempt > MaxAttempts)
         {
-            return new BadRequestFail("Retry count exceeded");
+            return new NoAttemptsAvailable();
         }
         
         return TimeSpan.FromSeconds(Math.Min(DelayInSeconds * attempt, MaxDelayInSeconds));
