@@ -29,6 +29,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="..\..\images\icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="TheNoobs.Results" Version="4.4.3" />
   </ItemGroup>
 
