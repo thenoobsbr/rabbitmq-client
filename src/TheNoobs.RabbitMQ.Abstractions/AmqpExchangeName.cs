@@ -16,7 +16,8 @@ public record AmqpExchangeName
     public string Value { get; }
     public AmqpExchangeType Type { get; }
     public bool AutoDeclare { get; }
-    
+    public static AmqpExchangeName Direct => new("", AmqpExchangeType.DIRECT, false);
+
     public static implicit operator AmqpExchangeName(string value) => new(value, AmqpExchangeType.TOPIC, true);
     public static implicit operator string(AmqpExchangeName value) => value.Value;
 

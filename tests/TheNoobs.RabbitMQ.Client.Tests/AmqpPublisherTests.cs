@@ -33,15 +33,16 @@ public class AmqpPublisherTests(ITestOutputHelper output)
             {
                 Message = "Test message"
             }).BindAsync(x => publisher.PublishAsync(
-            "",
+            AmqpExchangeName.Direct,
             randomQueue,
             x.Value,
             CancellationToken.None));
+        result.IsSuccess.ShouldBeTrue();
+        
         var messageCount = await channel.MessageCountAsync(randomQueue);
         var message = await channel.BasicGetAsync(randomQueue, true);
         var messageContentResult = serializer.Deserialize(typeof(StubMessage), message!.Body.Span);
         
-        result.IsSuccess.ShouldBeTrue();
         messageCount.ShouldBe<uint>(1);
         message.ShouldNotBeNull();
         messageContentResult.IsSuccess.ShouldBeTrue();
