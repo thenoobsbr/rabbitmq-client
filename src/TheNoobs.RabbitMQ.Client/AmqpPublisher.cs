@@ -1,5 +1,4 @@
-﻿using System.Text;
-using RabbitMQ.Client;
+﻿using RabbitMQ.Client;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.RabbitMQ.Client.Abstractions;
 using TheNoobs.Results;
@@ -73,8 +72,31 @@ public class AmqpPublisher : IAmqpPublisher
         CancellationToken cancellationToken)
         where T : notnull
     {
-        return _serializer.Serialize(message.Value)
+        return DeclareExchangeAsync()
+            .BindAsync(_ => _serializer.Serialize(message.Value))
             .BindAsync(PublishMessageAsync);
+
+        async ValueTask<Result<Void>> DeclareExchangeAsync()
+        {
+            if (!exchangeName.AutoDeclare)
+            {
+                return Void.Value;
+            }
+            
+            try
+            {
+                await channel.ExchangeDeclareAsync(
+                    exchangeName.Value,
+                    ParseExchangeType(exchangeName.Type),
+                    true,
+                    cancellationToken: cancellationToken);
+                return Void.Value;
+            }
+            catch (Exception e)
+            {
+                return new ServerErrorFail("Failed to declare exchange", exception: e);
+            }
+        }
 
         async ValueTask<Result<Void>> PublishMessageAsync(Result<byte[]> result)
         {
@@ -91,5 +113,17 @@ public class AmqpPublisher : IAmqpPublisher
                 return new ServerErrorFail("Failed to publish message", exception: e);
             }
         }
+    }
+    
+    private static string ParseExchangeType(AmqpExchangeType exchangeType)
+    {
+        return exchangeType switch
+        {
+            AmqpExchangeType.DIRECT => ExchangeType.Direct,
+            AmqpExchangeType.FANOUT => ExchangeType.Fanout,
+            AmqpExchangeType.HEADERS => ExchangeType.Headers,
+            AmqpExchangeType.TOPIC => ExchangeType.Topic,
+            _ => throw new ArgumentOutOfRangeException(nameof(exchangeType), exchangeType, null)
+        };
     }
 }

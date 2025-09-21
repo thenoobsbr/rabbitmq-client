@@ -47,4 +47,32 @@ public class AmqpPublisherTests(ITestOutputHelper output)
         messageContentResult.IsSuccess.ShouldBeTrue();
         messageContentResult.GetValue<StubMessage>().Value.Message.ShouldBe("Test message");
     }
+    
+    [Fact]
+    public async Task Should_Declare_Exchange_Successfully()
+    {
+        var connectionFactory = new ConnectionFactory
+        {
+            Uri = new Uri(Container.GetConnectionString())
+        };
+        var amqpConnectionFactory = new AmqpConnectionFactory(connectionFactory);
+        var serializer = new AmqpDefaultJsonSerializer(new JsonSerializerOptions());
+        var randomQueue = Guid.NewGuid().ToString();
+
+        await using var connection = await connectionFactory.CreateConnectionAsync();
+        await using var channel = await connection.CreateChannelAsync();
+        
+        var publisher = new AmqpPublisher(amqpConnectionFactory, serializer);
+        var result = await AmqpMessage<StubMessage>.Create(new StubMessage()
+        {
+            Message = "Test message"
+        }).BindAsync(x => publisher.PublishAsync(
+            "test",
+            randomQueue,
+            x.Value,
+            CancellationToken.None));
+        
+        await channel.ExchangeDeclarePassiveAsync("test")
+            .ShouldNotThrowAsync();
+    }
 }

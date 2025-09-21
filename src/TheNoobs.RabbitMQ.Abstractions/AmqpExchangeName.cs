@@ -6,17 +6,21 @@ namespace TheNoobs.RabbitMQ.Abstractions;
 
 public record AmqpExchangeName
 {
-    private AmqpExchangeName(string value)
+    private AmqpExchangeName(string value, AmqpExchangeType type, bool autoDeclare)
     {
         Value = value;
+        Type = type;
+        AutoDeclare = autoDeclare;
     }
     
     public string Value { get; }
+    public AmqpExchangeType Type { get; }
+    public bool AutoDeclare { get; }
     
-    public static implicit operator AmqpExchangeName(string value) => new(value);
+    public static implicit operator AmqpExchangeName(string value) => new(value, AmqpExchangeType.TOPIC, true);
     public static implicit operator string(AmqpExchangeName value) => value.Value;
 
-    public static Result<AmqpExchangeName> Create(string value)
+    public static Result<AmqpExchangeName> Create(string value, AmqpExchangeType type = AmqpExchangeType.TOPIC, bool autoDeclare = true)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -29,6 +33,6 @@ public record AmqpExchangeName
             return new InvalidInputFail("ExchangeName cannot be longer than 256 bytes");
         }
 
-        return new AmqpExchangeName(value);
+        return new AmqpExchangeName(value, type, autoDeclare);
     }
 }
