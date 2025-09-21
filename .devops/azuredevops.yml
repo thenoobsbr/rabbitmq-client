@@ -45,8 +45,4 @@ stages:
   - template: templates/nuget/publish_package.yml@templates
     parameters:
       pool: ${{ parameters.pool }}
-      condition: |
-        and(
-          succeeded(),
-          eq($[dependencies.calculate_version.outputs['calculate_sem_version.staging_deploy']], true)
-        )
+      condition: eq(dependencies.calculate_version.outputs['calculate_sem_version.staging_deploy'], true)
