@@ -8,6 +8,9 @@ parameters:
       - 'Self-hosted'
 
 trigger:
+  branches:
+    include:
+      - main
   tags:
     include:
       - '*'
@@ -40,5 +43,11 @@ stages:
       run_tests: true
       pool: ${{ parameters.pool }}
   - template: templates/nuget/publish_package.yml@templates
+    conditions:
+    condition: |
+      and(
+        succeeded(),
+        eq(dependencies.calculate_version.outputs['calculate_sem_version.staging_deploy'], 'true')
+      )
     parameters:
       pool: ${{ parameters.pool }}
