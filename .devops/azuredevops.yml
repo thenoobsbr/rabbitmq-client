@@ -43,7 +43,6 @@ stages:
       run_tests: true
       pool: ${{ parameters.pool }}
   - template: templates/nuget/publish_package.yml@templates
-    conditions:
     condition: |
       and(
         succeeded(),
