@@ -46,7 +46,7 @@ stages:
     parameters:
       pool: ${{ parameters.pool }}
       condition: |
-        and(
+        $[and(
           succeeded(),
           eq(dependencies.calculate_version.outputs['calculate_sem_version.staging_deploy'], 'true')
-        )
+        )]
