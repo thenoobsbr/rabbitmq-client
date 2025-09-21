@@ -153,7 +153,7 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
             basicProperties.Headers ??= new Dictionary<string, object?>();
             basicProperties.Headers.Add("x-attempt", attempt + 1);
             await _channel.BasicPublishAsync(
-                "",
+                AmqpExchangeName.Direct,
                 scheduleQueueName.Value,
                 true,
                 basicProperties,
@@ -185,7 +185,7 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
         basicProperties.Headers.Remove("x-dlq-reason");
         basicProperties.Headers.Add("x-dlq-reason", fail.Message);
         await _channel.BasicPublishAsync(
-            "",
+            AmqpExchangeName.Direct,
             _consumerConfiguration.QueueName.DeadLetterQueueName(),
             true,
             basicProperties,
