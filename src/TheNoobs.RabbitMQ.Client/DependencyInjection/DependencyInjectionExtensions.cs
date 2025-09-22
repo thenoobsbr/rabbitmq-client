@@ -33,17 +33,24 @@ public static class DependencyInjectionExtensions
         foreach (var handler in consumerHandlers)
         {
             services.AddScoped(handler);
-            var queueAttributes = handler.GetCustomAttributes<AmqpQueueAttribute>().ToList();
-            if (!queueAttributes.Any())
+            var queueAttribute = handler.GetCustomAttribute<AmqpQueueAttribute>();
+            
+            if (queueAttribute == null)
             {
                 throw new InvalidOperationException($"AmqpQueueAttribute not found in {handler.Name}");
             }
-
+            
             var retryAttribute = handler.GetCustomAttribute<AmqpRetryAttribute>();
-            foreach (var queueAttribute in queueAttributes)
-            {
-                services.AddSingleton(typeof(IAmqpConsumerConfiguration), new AmqpConsumerConfiguration(handler, retryAttribute, queueAttribute.QueueName));
-            }
+            var queueBindings = handler
+                .GetCustomAttributes<AmqpQueueBindingAttribute>()
+                .Cast<IAmqpQueueBinding>()
+                .ToArray();
+            services.AddSingleton(typeof(IAmqpConsumerConfiguration),
+                new AmqpConsumerConfiguration(
+                    handler,
+                    retryAttribute,
+                    queueAttribute.QueueName,
+                    queueBindings));
         }
 
         return services;
@@ -62,11 +69,12 @@ public static class DependencyInjectionExtensions
         }
     }
     
-    class AmqpConsumerConfiguration(Type handlerType, IAmqpRetry? retry, AmqpQueueName queueName) : IAmqpConsumerConfiguration
+    class AmqpConsumerConfiguration(Type handlerType, IAmqpRetry? retry, AmqpQueueName queueName, IAmqpQueueBinding[] bindings) : IAmqpConsumerConfiguration
     {
         public Type HandlerType => handlerType;
         public Type RequestType => handlerType.GetInterface(typeof(IAmqpConsumer<>).Name)!.GetGenericArguments().First();
         public AmqpQueueName QueueName => queueName;
         public IAmqpRetry? Retry => retry;
+        public IAmqpQueueBinding[] Bindings => bindings;
     }
 }

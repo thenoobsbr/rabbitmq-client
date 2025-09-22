@@ -8,4 +8,5 @@ public interface IAmqpConsumerConfiguration
     Type RequestType { get; }
     AmqpQueueName QueueName { get; }
     IAmqpRetry? Retry { get; }
+    IAmqpQueueBinding[] Bindings { get; }
 }

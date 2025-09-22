@@ -211,6 +211,10 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
         try
         {
             await channel.QueueDeclareAsync(consumerConfiguration.QueueName, true, false, false, cancellationToken: cancellationToken);
+            foreach (var binding in consumerConfiguration.Bindings)
+            {
+                await channel.QueueBindAsync(consumerConfiguration.QueueName.Value, binding.ExchangeName, binding.RoutingKey, cancellationToken: cancellationToken);
+            }
             return Void.Value;
         }
         catch (Exception ex)

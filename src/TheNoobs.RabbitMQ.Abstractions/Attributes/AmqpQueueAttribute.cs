@@ -1,6 +1,6 @@
 namespace TheNoobs.RabbitMQ.Abstractions.Attributes;
 
-[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
+[AttributeUsage(AttributeTargets.Class)]
 public class AmqpQueueAttribute : Attribute
 {
 
