@@ -62,7 +62,7 @@ public static class DependencyInjectionExtensions
         }
     }
     
-    class AmqpConsumerConfiguration(Type handlerType, IAmqpRetry? retry, AmqpQueueName queueName)
+    class AmqpConsumerConfiguration(Type handlerType, IAmqpRetry? retry, AmqpQueueName queueName) : IAmqpConsumerConfiguration
     {
         public Type HandlerType => handlerType;
         public Type RequestType => handlerType.GetInterface(typeof(IAmqpConsumer<>).Name)!.GetGenericArguments().First();
