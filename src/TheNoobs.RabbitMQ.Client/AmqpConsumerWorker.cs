@@ -6,14 +6,14 @@ using TheNoobs.Results.Extensions;
 
 namespace TheNoobs.RabbitMQ.Client;
 
-public class ConsumerWorker: BackgroundService
+public class AmqpConsumerWorker: BackgroundService
 {
     private readonly IAmqpConnectionFactory _connectionFactory;
     private readonly IEnumerable<IAmqpConsumerConfiguration> _consumerConfigurations;
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly IAmqpSerializer _serializer;
 
-    public ConsumerWorker(
+    public AmqpConsumerWorker(
         IAmqpConnectionFactory connectionFactory,
         IEnumerable<IAmqpConsumerConfiguration> consumerConfigurations,
         IServiceScopeFactory serviceScopeFactory,

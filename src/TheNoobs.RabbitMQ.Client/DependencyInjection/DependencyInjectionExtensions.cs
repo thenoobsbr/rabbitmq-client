@@ -19,6 +19,7 @@ public static class DependencyInjectionExtensions
         services.AddSingleton<IAmqpConnectionFactory>(new AmqpConnectionFactory(connectionFactory));
         services.AddSingleton<IAmqpPublisher, AmqpPublisher>();
         services.AddSingleton(typeof(IAmqpSerializer), amqpBuilder.SerializerType);
+        services.AddHostedService<AmqpConsumerWorker>();
         return services.AddConsumers(amqpBuilder.Assemblies);
     }
 
