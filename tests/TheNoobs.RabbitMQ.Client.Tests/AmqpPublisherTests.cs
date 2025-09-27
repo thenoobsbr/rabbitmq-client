@@ -1,10 +1,12 @@
 ﻿using System.Text.Json;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 using Shouldly;
 using Testcontainers.RabbitMq;
 using Testcontainers.Xunit;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.RabbitMQ.Client.Tests.Stubs;
+using TheNoobs.Results;
 using TheNoobs.Results.Extensions;
 using Xunit.Abstractions;
 
@@ -75,5 +77,50 @@ public class AmqpPublisherTests(ITestOutputHelper output)
         
         await channel.ExchangeDeclarePassiveAsync("test")
             .ShouldNotThrowAsync();
+    }
+    
+    [Fact]
+    public async Task Should_Send_Message_As_Rpc_Successfully()
+    {
+        var connectionFactory = new ConnectionFactory
+        {
+            Uri = new Uri(Container.GetConnectionString())
+        };
+        var amqpConnectionFactory = new AmqpConnectionFactory(connectionFactory);
+        var serializer = new AmqpDefaultJsonSerializer(new JsonSerializerOptions());
+        var randomQueue = Guid.NewGuid().ToString();
+
+        await using var connection = await connectionFactory.CreateConnectionAsync();
+        await using var channel = await connection.CreateChannelAsync();
+        await channel.QueueDeclareAsync(randomQueue, false, false, false);
+        
+        var consumer = new AsyncEventingBasicConsumer(channel);
+        consumer.ReceivedAsync += async (_, deliverEventArgs) =>
+        {
+            var mesage = (StubMessage)serializer.Deserialize(typeof(StubMessage), deliverEventArgs.Body.Span);
+            mesage.Message += " - Received";
+            
+            var rpcResponse = RpcResponse.Create(new Result<StubMessage>(mesage), serializer);
+
+            var properties = new BasicProperties();
+            properties.CorrelationId = deliverEventArgs.BasicProperties.CorrelationId;
+            await channel.BasicPublishAsync("", deliverEventArgs.BasicProperties.ReplyTo!,
+                serializer.Serialize(rpcResponse.Value).Value);
+        };
+        await channel.BasicConsumeAsync(randomQueue, true, consumer);
+        
+        var publisher = new AmqpPublisher(amqpConnectionFactory, serializer);
+        var result = await AmqpMessage<StubMessage>.Create(new StubMessage()
+        {
+            Message = "Test message"
+        }).BindAsync(x => publisher.SendAsync<StubMessage, StubMessage>(
+            AmqpExchangeName.Direct,
+            randomQueue,
+            x.Value,
+            TimeSpan.FromSeconds(180),
+            CancellationToken.None));
+        result.IsSuccess.ShouldBeTrue();
+        
+        result.Value.Message.ShouldBe("Test message - Received");
     }
 }

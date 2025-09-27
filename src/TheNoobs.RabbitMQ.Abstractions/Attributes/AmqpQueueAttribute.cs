@@ -4,9 +4,9 @@ namespace TheNoobs.RabbitMQ.Abstractions.Attributes;
 public class AmqpQueueAttribute : Attribute
 {
 
-    public AmqpQueueAttribute(string queueName)
+    public AmqpQueueAttribute(string queueName, bool autoDeclare = true)
     {
-        QueueName = queueName;
+        QueueName = AmqpQueueName.Create(queueName, autoDeclare).Value;
     }
     
     public AmqpQueueName QueueName { get; }

@@ -52,7 +52,7 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
                 await _channel.BasicAckAsync(deliveryTag, false, cancellationToken);
                 return;
             }
-
+            
             var method = handler.GetType().GetMethod(nameof(IAmqpConsumer<object>.HandleAsync), [
                 request.Value.GetType(),
                 typeof(CancellationToken)
@@ -66,8 +66,23 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
                 
                 return;
             }
-
-            var result = await (ValueTask<Result<Void>>)method.Invoke(handler, [request.Value, cancellationToken])!;
+            
+            var invokeResult = method.Invoke(handler, [request.Value, cancellationToken])!;
+            
+            IResult result = invokeResult switch
+            {
+                ValueTask<Result<Void>> valueTaskResult => await valueTaskResult,
+                ValueTask<Result<object>> objectValueTaskResult => await objectValueTaskResult,
+                _ => await (dynamic)invokeResult
+            };
+            
+            if (properties.IsReplyToPresent())
+            {
+                await ReplyAsync(properties, result, cancellationToken);
+                await _channel.BasicAckAsync(deliveryTag, false, cancellationToken);
+                return;
+            }
+            
             if (result.IsSuccess)
             {
                 await _channel.BasicAckAsync(deliveryTag, false, cancellationToken);
@@ -126,6 +141,33 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
         }
     }
 
+    private async ValueTask ReplyAsync(IReadOnlyBasicProperties properties, IResult result, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(properties.ReplyTo))
+        {
+            return;
+        }
+
+        try
+        {
+            var basicProperties = new BasicProperties();
+            basicProperties.CorrelationId = properties.CorrelationId;
+            var response = RpcResponse.Create(result, _serializer)
+                .Bind(x => _serializer.Serialize(x.Value));
+
+            await _channel.BasicPublishAsync(
+                AmqpExchangeName.Direct,
+                properties.ReplyTo, true,
+                basicProperties,
+                response.Value,
+                cancellationToken);
+        }
+        catch
+        {
+            // TODO: Log error
+        }
+    }
+
     private async ValueTask<Result<Void>> RetryAsync(IAmqpRetry retry, IReadOnlyBasicProperties properties, ReadOnlyMemory<byte> body, Fail fail)
     {
         if (properties.Headers is null
@@ -177,7 +219,9 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
 
     private async ValueTask SendToDeadLetterAsync(IReadOnlyBasicProperties properties, ReadOnlyMemory<byte> body, Fail fail)
     {
-        await _channel.QueueDeclareAsync(_consumerConfiguration.QueueName.DeadLetterQueueName(), true, false,
+        var dlqQueue = _consumerConfiguration.QueueName.DeadLetterQueueName().Value;
+        
+        await _channel.QueueDeclareAsync(dlqQueue, true, false,
             false);
 
         var basicProperties = new BasicProperties(properties);
@@ -186,7 +230,7 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
         basicProperties.Headers.Add("x-dlq-reason", fail.Message);
         await _channel.BasicPublishAsync(
             AmqpExchangeName.Direct,
-            _consumerConfiguration.QueueName.DeadLetterQueueName(),
+            dlqQueue,
             true,
             basicProperties,
             body);
@@ -208,6 +252,11 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
     private static async ValueTask<Result<Void>> CreateQueueAsync(IChannel channel,
         IAmqpConsumerConfiguration consumerConfiguration, CancellationToken cancellationToken)
     {
+        if (!consumerConfiguration.QueueName.AutoDeclare)
+        {
+            return Void.Value;
+        }
+        
         try
         {
             await channel.QueueDeclareAsync(consumerConfiguration.QueueName, true, false, false, cancellationToken: cancellationToken);

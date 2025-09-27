@@ -34,7 +34,7 @@ public class AmqpConsumerTests(ITestOutputHelper output)
         configuration.HandlerType.Returns(typeof(ITestMessage));
         configuration.RequestType.Returns(typeof(StubMessage));
         
-        var handler = new StubHandler((_, _) => ValueTask.FromResult(new Result<Void>(Void.Value)));
+        var handler = new StubHandler<Void>((_, _) => ValueTask.FromResult(new Result<Void>(Void.Value)));
         
         var consumerResult = await SetupConsumer(amqpConnectionFactory, serializer, configuration, handler);
 
@@ -58,12 +58,12 @@ public class AmqpConsumerTests(ITestOutputHelper output)
         
         var configuration = Substitute.For<IAmqpConsumerConfiguration>();
         configuration.QueueName.Returns(AmqpQueueName.Create("test").Value);
-        configuration.HandlerType.Returns(typeof(StubHandler));
+        configuration.HandlerType.Returns(typeof(StubHandler<Void>));
         configuration.RequestType.Returns(typeof(StubMessage));
         
         var semaphore = new SemaphoreSlim(0);
         
-        var handler = new StubHandler((message, cancellationToken) =>
+        var handler = new StubHandler<Void>((message, cancellationToken) =>
         {
             message.Message.ShouldBe("Test message");
             cancellationToken.ShouldBeOfType<CancellationToken>();
@@ -100,12 +100,12 @@ public class AmqpConsumerTests(ITestOutputHelper output)
         
         var configuration = Substitute.For<IAmqpConsumerConfiguration>();
         configuration.QueueName.Returns(AmqpQueueName.Create("test").Value);
-        configuration.HandlerType.Returns(typeof(StubHandler));
+        configuration.HandlerType.Returns(typeof(StubHandler<Void>));
         configuration.RequestType.Returns(typeof(StubMessage));
         
         var semaphore = new SemaphoreSlim(0);
         
-        var handler = new StubHandler((_, _) =>
+        var handler = new StubHandler<Void>((_, _) =>
         {
             semaphore.Release();
             return ValueTask.FromResult(new Result<Void>(Void.Value));
@@ -143,13 +143,13 @@ public class AmqpConsumerTests(ITestOutputHelper output)
         
         var configuration = Substitute.For<IAmqpConsumerConfiguration>();
         configuration.QueueName.Returns(AmqpQueueName.Create("test").Value);
-        configuration.HandlerType.Returns(typeof(StubHandler));
+        configuration.HandlerType.Returns(typeof(StubHandler<Void>));
         configuration.RequestType.Returns(typeof(StubMessage));
         configuration.Retry.Returns((IAmqpRetry?)null);
         
         var semaphore = new SemaphoreSlim(0);
         
-        var handler = new StubHandler((_, _) =>
+        var handler = new StubHandler<Void>((_, _) =>
         {
             semaphore.Release();
             return ValueTask.FromResult(new Result<Void>(new ServerErrorFail()));
@@ -195,13 +195,13 @@ public class AmqpConsumerTests(ITestOutputHelper output)
         
         var configuration = Substitute.For<IAmqpConsumerConfiguration>();
         configuration.QueueName.Returns(AmqpQueueName.Create("test").Value);
-        configuration.HandlerType.Returns(typeof(StubHandler));
+        configuration.HandlerType.Returns(typeof(StubHandler<Void>));
         configuration.RequestType.Returns(typeof(StubMessage));
         configuration.Retry.Returns(retry);
         
         var semaphore = new SemaphoreSlim(0);
         
-        var handler = new StubHandler((_, _) =>
+        var handler = new StubHandler<Void>((_, _) =>
         {
             semaphore.Release();
             return ValueTask.FromResult(new Result<Void>(new ServerErrorFail()));
@@ -232,14 +232,15 @@ public class AmqpConsumerTests(ITestOutputHelper output)
         retryQueue.MessageCount.ShouldBe<uint>(1);
     }
 
-    private async Task<Result<AmqpConsumer>> SetupConsumer(
+    private async Task<Result<AmqpConsumer>> SetupConsumer<TResponse>(
         IAmqpConnectionFactory amqpConnectionFactory,
         IAmqpSerializer serializer,
         IAmqpConsumerConfiguration configuration,
-        StubHandler handler)
+        StubHandler<TResponse> handler)
+        where TResponse : notnull
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(StubHandler)).Returns(handler);
+        serviceProvider.GetService(typeof(StubHandler<TResponse>)).Returns(handler);
         
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(serviceProvider);

@@ -6,12 +6,14 @@ namespace TheNoobs.RabbitMQ.Abstractions;
 
 public record AmqpQueueName
 {
-    private AmqpQueueName(string value)
+    private AmqpQueueName(string value, bool autoDeclare)
     {
         Value = value;
+        AutoDeclare = autoDeclare;
     }
     
     public string Value { get; }
+    public bool AutoDeclare { get; }
 
     public static implicit operator AmqpQueueName(string queueName) => Create(queueName);
     public static implicit operator string(AmqpQueueName queueName) => queueName.Value;
@@ -19,7 +21,7 @@ public record AmqpQueueName
     public AmqpQueueName DeadLetterQueueName() => Create($"dlq-{Value}");
     public AmqpQueueName ScheduledQueueName(TimeSpan delay) => Create($"sch-{Value}-{delay.TotalSeconds}s");
 
-    public static Result<AmqpQueueName> Create(string value)
+    public static Result<AmqpQueueName> Create(string value, bool autoDeclare = true)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -32,6 +34,6 @@ public record AmqpQueueName
             return new InvalidInputFail("QueueName cannot be longer than 256 bytes");
         }
 
-        return new AmqpQueueName(value);
+        return new AmqpQueueName(value, autoDeclare);
     }
 }

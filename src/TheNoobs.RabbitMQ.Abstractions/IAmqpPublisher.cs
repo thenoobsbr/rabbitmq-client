@@ -10,4 +10,14 @@ public interface IAmqpPublisher
         AmqpMessage<T> amqpMessage,
         CancellationToken cancellationToken)
         where T : notnull;
+    
+    
+    ValueTask<Result<TOut>> SendAsync<TIn, TOut>(
+        AmqpExchangeName amqpExchangeName,
+        AmqpRoutingKey amqpRoutingKey,
+        AmqpMessage<TIn> amqpMessage,
+        TimeSpan waitTimeout,
+        CancellationToken cancellationToken)
+        where TIn : notnull
+        where TOut : notnull;
 }
