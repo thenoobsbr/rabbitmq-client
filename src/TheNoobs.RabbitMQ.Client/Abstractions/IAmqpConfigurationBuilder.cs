@@ -1,10 +1,13 @@
 using System.Reflection;
+using TheNoobs.RabbitMQ.Abstractions;
 
 namespace TheNoobs.RabbitMQ.Client.Abstractions;
 
 public interface IAmqpConfigurationBuilder
 {
-    string ConnectionString { get; set; }
-    Type SerializerType { get; set; }
-    void AddConsumersFromAssemblies(params Assembly[] assemblies);
+    IAmqpConfigurationBuilder UseConnectionString(string connectionString);
+    IAmqpConfigurationBuilder UseSerializer<TSerializer>()
+        where TSerializer : IAmqpSerializer;
+    IAmqpConfigurationBuilder AddConsumersFromAssemblies(params Assembly[] assemblies);
+    IAmqpConfigurationBuilder UseOpenTelemetry(string source);
 }

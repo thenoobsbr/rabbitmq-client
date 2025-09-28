@@ -2,6 +2,7 @@
 using RabbitMQ.Client.Events;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.RabbitMQ.Client.Abstractions;
+using TheNoobs.RabbitMQ.Client.OpenTelemetry;
 using TheNoobs.Results;
 using TheNoobs.Results.Abstractions;
 using TheNoobs.Results.Extensions;
@@ -14,13 +15,16 @@ public class AmqpPublisher : IAmqpPublisher
 {
     private readonly IAmqpConnectionFactory _connectionFactory;
     private readonly IAmqpSerializer _serializer;
+    private readonly OpenTelemetryPropagator? _openTelemetryPropagator;
 
     public AmqpPublisher(
         IAmqpConnectionFactory connectionFactory,
-        IAmqpSerializer serializer)
+        IAmqpSerializer serializer,
+        OpenTelemetryPropagator? openTelemetryPropagator)
     {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+        _openTelemetryPropagator = openTelemetryPropagator;
     }
     
     public ValueTask<Result<Void>> PublishAsync<T>(
@@ -106,6 +110,7 @@ public class AmqpPublisher : IAmqpPublisher
             {
                 var properties = new BasicProperties();
                 properties.CorrelationId = message.CorrelationId;
+                _openTelemetryPropagator?.Propagate(properties);
                 var replyQueue = await channel.QueueDeclareAsync(
                     Guid.NewGuid().ToString(),
                     exclusive: true,
@@ -159,14 +164,18 @@ public class AmqpPublisher : IAmqpPublisher
             .BindAsync(_ => _serializer.Serialize(message.Value))
             .BindAsync(PublishMessageAsync);
 
-        async ValueTask<Result<Void>> PublishMessageAsync(Result<byte[]> result)
+        async ValueTask<Result<Void>> PublishMessageAsync(Result<byte[]> serializedData)
         {
             try
             {
+                var properties = new BasicProperties();
+                _openTelemetryPropagator?.Propagate(properties);
                 await channel.BasicPublishAsync(
-                    exchangeName,
-                    routingKey,
-                    result.Value,
+                    exchangeName.Value,
+                    routingKey.Value,
+                    false,
+                    properties,
+                    serializedData.Value,
                     cancellationToken);
                 return Void.Value;
             } catch (Exception e)

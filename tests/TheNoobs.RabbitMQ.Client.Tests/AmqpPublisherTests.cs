@@ -30,7 +30,7 @@ public class AmqpPublisherTests(ITestOutputHelper output)
         await using var channel = await connection.CreateChannelAsync();
         await channel.QueueDeclareAsync(randomQueue, false, false, false);
         
-        var publisher = new AmqpPublisher(amqpConnectionFactory, serializer);
+        var publisher = new AmqpPublisher(amqpConnectionFactory, serializer, null);
         var result = await AmqpMessage<StubMessage>.Create(new StubMessage()
             {
                 Message = "Test message"
@@ -65,8 +65,8 @@ public class AmqpPublisherTests(ITestOutputHelper output)
         await using var connection = await connectionFactory.CreateConnectionAsync();
         await using var channel = await connection.CreateChannelAsync();
         
-        var publisher = new AmqpPublisher(amqpConnectionFactory, serializer);
-        var result = await AmqpMessage<StubMessage>.Create(new StubMessage()
+        var publisher = new AmqpPublisher(amqpConnectionFactory, serializer, null);
+        await AmqpMessage<StubMessage>.Create(new StubMessage()
         {
             Message = "Test message"
         }).BindAsync(x => publisher.PublishAsync(
@@ -97,10 +97,10 @@ public class AmqpPublisherTests(ITestOutputHelper output)
         var consumer = new AsyncEventingBasicConsumer(channel);
         consumer.ReceivedAsync += async (_, deliverEventArgs) =>
         {
-            var mesage = (StubMessage)serializer.Deserialize(typeof(StubMessage), deliverEventArgs.Body.Span);
-            mesage.Message += " - Received";
+            var message = (StubMessage)serializer.Deserialize(typeof(StubMessage), deliverEventArgs.Body.Span);
+            message.Message += " - Received";
             
-            var rpcResponse = RpcResponse.Create(new Result<StubMessage>(mesage), serializer);
+            var rpcResponse = RpcResponse.Create(new Result<StubMessage>(message), serializer);
 
             var properties = new BasicProperties();
             properties.CorrelationId = deliverEventArgs.BasicProperties.CorrelationId;
@@ -109,7 +109,7 @@ public class AmqpPublisherTests(ITestOutputHelper output)
         };
         await channel.BasicConsumeAsync(randomQueue, true, consumer);
         
-        var publisher = new AmqpPublisher(amqpConnectionFactory, serializer);
+        var publisher = new AmqpPublisher(amqpConnectionFactory, serializer, null);
         var result = await AmqpMessage<StubMessage>.Create(new StubMessage()
         {
             Message = "Test message"

@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.RabbitMQ.Client.Abstractions;
+using TheNoobs.RabbitMQ.Client.OpenTelemetry;
 using TheNoobs.Results;
 using TheNoobs.Results.Abstractions;
 using TheNoobs.Results.Extensions;
@@ -18,17 +19,20 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
     private readonly IAmqpSerializer _serializer;
     private readonly IAmqpConsumerConfiguration _consumerConfiguration;
     private readonly IServiceScopeFactory _serviceScopeFactory;
+    private readonly OpenTelemetryPropagator? _openTelemetryPropagator;
 
     public AmqpConsumer(
         IChannel channel,
         IAmqpSerializer serializer,
         IAmqpConsumerConfiguration consumerConfiguration,
-        IServiceScopeFactory serviceScopeFactory) : base(channel)
+        IServiceScopeFactory serviceScopeFactory,
+        OpenTelemetryPropagator? openTelemetryPropagator) : base(channel)
     {
         _channel = channel ?? throw new ArgumentNullException(nameof(channel));
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         _consumerConfiguration = consumerConfiguration ?? throw new ArgumentNullException(nameof(consumerConfiguration));
         _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
+        _openTelemetryPropagator = openTelemetryPropagator;
     }
 
     public override async Task HandleBasicDeliverAsync(
@@ -43,6 +47,8 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
     {
         try
         {
+            using var activity = _openTelemetryPropagator?.StartActivity(properties);
+            
             await using var scope = _serviceScopeFactory.CreateAsyncScope();
             var handler = scope.ServiceProvider.GetRequiredService(_consumerConfiguration.HandlerType);
             var request = _serializer.Deserialize(_consumerConfiguration.RequestType, body.Span);
@@ -152,6 +158,8 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
         {
             var basicProperties = new BasicProperties();
             basicProperties.CorrelationId = properties.CorrelationId;
+            _openTelemetryPropagator?.Propagate(basicProperties);
+            
             var response = RpcResponse.Create(result, _serializer)
                 .Bind(x => _serializer.Serialize(x.Value));
 
@@ -241,12 +249,18 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
         IAmqpSerializer serializer,
         IAmqpConsumerConfiguration consumerConfiguration,
         IServiceScopeFactory serviceScopeFactory,
+        OpenTelemetryPropagator? openTelemetryPropagator,
         CancellationToken cancellationToken)
     {
         return connectionFactory.CreateConnectionAsync(cancellationToken)
             .BindAsync(x => CreateChannelAsync(x.Value, cancellationToken))
             .BindAsync(x => CreateQueueAsync(x.Value, consumerConfiguration, cancellationToken))
-            .BindAsync<Void, AmqpConsumer>(x => new AmqpConsumer(x.GetValue<IChannel>().Value, serializer, consumerConfiguration, serviceScopeFactory));
+            .BindAsync<Void, AmqpConsumer>(x => new AmqpConsumer(
+                x.GetValue<IChannel>().Value,
+                serializer,
+                consumerConfiguration,
+                serviceScopeFactory,
+                openTelemetryPropagator));
     }
 
     private static async ValueTask<Result<Void>> CreateQueueAsync(IChannel channel,

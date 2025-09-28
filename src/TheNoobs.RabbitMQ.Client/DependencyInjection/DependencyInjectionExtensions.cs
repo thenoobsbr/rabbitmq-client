@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.RabbitMQ.Abstractions.Attributes;
 using TheNoobs.RabbitMQ.Client.Abstractions;
+using TheNoobs.RabbitMQ.Client.OpenTelemetry;
 
 namespace TheNoobs.RabbitMQ.Client.DependencyInjection;
 
@@ -19,6 +21,10 @@ public static class DependencyInjectionExtensions
         services.AddSingleton<IAmqpConnectionFactory>(new AmqpConnectionFactory(connectionFactory));
         services.AddSingleton<IAmqpPublisher, AmqpPublisher>();
         services.AddSingleton(typeof(IAmqpSerializer), amqpBuilder.SerializerType);
+        if (amqpBuilder.TelemetrySource is not null)
+        {
+            services.AddSingleton(new OpenTelemetryPropagator(amqpBuilder.TelemetrySource));
+        }
         services.AddHostedService<AmqpConsumerWorker>();
         return services.AddConsumers(amqpBuilder.Assemblies);
     }
@@ -59,14 +65,33 @@ public static class DependencyInjectionExtensions
 
     class AmqpConfigurationBuilder : IAmqpConfigurationBuilder
     {
-        public string ConnectionString { get; set; } = string.Empty;
-        public Type SerializerType { get; set; } = typeof(AmqpDefaultJsonSerializer);
-        
-        internal List<Assembly> Assemblies { get; set; } = new();
-        
-        public void AddConsumersFromAssemblies(params Assembly[] assemblies)
+        internal string ConnectionString { get; private set; } = string.Empty;
+        internal Type SerializerType { get; private set; } = typeof(AmqpDefaultJsonSerializer);
+        internal List<Assembly> Assemblies { get; } = new();
+        internal ActivitySource? TelemetrySource { get; private set; }
+
+        public IAmqpConfigurationBuilder UseConnectionString(string connectionString)
+        {
+            ConnectionString = connectionString;
+            return this;
+        }
+
+        public IAmqpConfigurationBuilder UseSerializer<TSerializer>() where TSerializer : IAmqpSerializer
+        {
+            SerializerType = typeof(TSerializer);
+            return this;
+        }
+
+        public IAmqpConfigurationBuilder AddConsumersFromAssemblies(params Assembly[] assemblies)
         {
             Assemblies.AddRange(assemblies);
+            return this;
+        }
+
+        public IAmqpConfigurationBuilder UseOpenTelemetry(string source)
+        {
+            TelemetrySource = new ActivitySource(source);
+            return this;
         }
     }
     

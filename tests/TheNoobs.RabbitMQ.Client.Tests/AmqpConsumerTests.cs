@@ -253,6 +253,7 @@ public class AmqpConsumerTests(ITestOutputHelper output)
                 serializer,
                 configuration,
                 serviceScopeFactory,
+                null,
                 CancellationToken.None)
             .BindAsync(x => x.Value.StartAsync(CancellationToken.None));
         

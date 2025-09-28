@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.RabbitMQ.Client.Abstractions;
+using TheNoobs.RabbitMQ.Client.OpenTelemetry;
 using TheNoobs.Results.Extensions;
 
 namespace TheNoobs.RabbitMQ.Client;
@@ -12,17 +13,20 @@ public class AmqpConsumerWorker: BackgroundService
     private readonly IEnumerable<IAmqpConsumerConfiguration> _consumerConfigurations;
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly IAmqpSerializer _serializer;
+    private readonly OpenTelemetryPropagator? _openTelemetryPropagator;
 
     public AmqpConsumerWorker(
         IAmqpConnectionFactory connectionFactory,
         IEnumerable<IAmqpConsumerConfiguration> consumerConfigurations,
         IServiceScopeFactory serviceScopeFactory,
-        IAmqpSerializer serializer)
+        IAmqpSerializer serializer,
+        OpenTelemetryPropagator? openTelemetryPropagator)
     {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
         _consumerConfigurations = consumerConfigurations ?? throw new ArgumentNullException(nameof(consumerConfigurations));
         _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+        _openTelemetryPropagator = openTelemetryPropagator;
     }
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -34,6 +38,7 @@ public class AmqpConsumerWorker: BackgroundService
                     _serializer,
                     x,
                     _serviceScopeFactory,
+                    _openTelemetryPropagator,
                     stoppingToken)
                     .BindAsync(xy => xy.Value.StartAsync(stoppingToken)))
             .MergeAsync();
