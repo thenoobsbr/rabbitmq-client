@@ -88,9 +88,9 @@ public static class DependencyInjectionExtensions
             return this;
         }
 
-        public IAmqpConfigurationBuilder UseOpenTelemetry(string source)
+        public IAmqpConfigurationBuilder UseOpenTelemetry(ActivitySource activitySource)
         {
-            TelemetrySource = new ActivitySource(source);
+            TelemetrySource = activitySource;
             return this;
         }
     }
