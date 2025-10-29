@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using RabbitMQ.Client;
 
 namespace TheNoobs.RabbitMQ.Client.OpenTelemetry;
@@ -19,9 +20,9 @@ public class OpenTelemetryPropagator
     {
         const string ACTIVITY_NAME = "RabbitMQ Consumer";
         if (properties.Headers is null
-            || !properties.Headers.TryGetValue(TRACE_PARENT_HEADER, out object? traceparent)
-            || !properties.Headers.TryGetValue(TRACE_STATE_HEADER, out object? tracestate)
-            || !ActivityContext.TryParse((string?)traceparent, (string?)tracestate, out var activityContext))
+            || !TryGetValue(properties.Headers, TRACE_PARENT_HEADER, out var traceparent)
+            || !TryGetValue(properties.Headers, TRACE_STATE_HEADER, out var tracestate)
+            || !ActivityContext.TryParse(traceparent, tracestate, out var activityContext))
         {
             return _activitySource.StartActivity(ACTIVITY_NAME, ActivityKind.Consumer)!;
         }
@@ -39,5 +40,22 @@ public class OpenTelemetryPropagator
         basicProperties.Headers ??= new Dictionary<string, object?>();
         basicProperties.Headers.Add(TRACE_PARENT_HEADER, Activity.Current.Id);
         basicProperties.Headers.Add(TRACE_STATE_HEADER, Activity.Current.TraceStateString);
+    }
+
+    private bool TryGetValue(IDictionary<string, object?> properties, string key, out string value)
+    {
+        value = string.Empty;
+        if (!properties.TryGetValue(key, out var propertyValue))
+        {
+            return false;
+        }
+
+        if (propertyValue is not byte[] bytes)
+        {
+            return false;
+        }
+        
+        value = Encoding.UTF8.GetString(bytes);
+        return true;
     }
 }
