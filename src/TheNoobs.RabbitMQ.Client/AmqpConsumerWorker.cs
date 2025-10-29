@@ -1,57 +1,80 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.RabbitMQ.Client.Abstractions;
 using TheNoobs.RabbitMQ.Client.OpenTelemetry;
+using TheNoobs.Results.Abstractions;
 using TheNoobs.Results.Extensions;
 
 namespace TheNoobs.RabbitMQ.Client;
 
-public class AmqpConsumerWorker: BackgroundService
+public class AmqpConsumerWorker: IHostedService
 {
+    private readonly ILogger<AmqpConsumerWorker> _logger;
     private readonly IAmqpConnectionFactory _connectionFactory;
     private readonly IEnumerable<IAmqpConsumerConfiguration> _consumerConfigurations;
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly IAmqpSerializer _serializer;
     private readonly OpenTelemetryPropagator? _openTelemetryPropagator;
+    private AmqpConsumer[] _consumers;
 
     public AmqpConsumerWorker(
+        ILogger<AmqpConsumerWorker> logger,
         IAmqpConnectionFactory connectionFactory,
         IEnumerable<IAmqpConsumerConfiguration> consumerConfigurations,
         IServiceScopeFactory serviceScopeFactory,
         IAmqpSerializer serializer,
         OpenTelemetryPropagator? openTelemetryPropagator)
     {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
         _consumerConfigurations = consumerConfigurations ?? throw new ArgumentNullException(nameof(consumerConfigurations));
         _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         _openTelemetryPropagator = openTelemetryPropagator;
+        _consumers = [];
     }
-    
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var consumers = await _consumerConfigurations
-            .Select(x =>
-                AmqpConsumer.CreateAsync(
-                    _connectionFactory,
-                    _serializer,
-                    x,
-                    _serviceScopeFactory,
-                    _openTelemetryPropagator,
-                    stoppingToken)
-                    .BindAsync(xy => xy.Value.StartAsync(stoppingToken)))
-            .MergeAsync();
-
-        while (!stoppingToken.WaitHandle.WaitOne(TimeSpan.FromMinutes(10)))
+        if (!_consumerConfigurations.Any())
         {
-            // TODO: Add logging
+            return;
         }
-
-        foreach (var consumerResult in consumers.Value)
+        
+        do
         {
-            await consumerResult.GetValue<AmqpConsumer>()
-                .Value.DisposeAsync();
+            var consumers = await _consumerConfigurations
+                .Select(x =>
+                    AmqpConsumer.CreateAsync(
+                            _connectionFactory,
+                            _serializer,
+                            x,
+                            _serviceScopeFactory,
+                            _openTelemetryPropagator,
+                            cancellationToken)
+                        .BindAsync(xy => xy.Value.StartAsync(cancellationToken)))
+                .MergeAsync();
+
+            if (consumers.IsSuccess)
+            {
+                _consumers = consumers
+                    .Value
+                    .Select(x => x.GetValue<AmqpConsumer>().Value)
+                    .ToArray();
+                return;
+            }
+            
+            _logger.LogError(consumers.Fail.Exception, "Failed to start consumers for @{configurations}", _consumerConfigurations);
+        } while (!cancellationToken.IsCancellationRequested);
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        foreach (var consumer in _consumers)
+        {
+            await consumer.DisposeAsync();
         }
     }
 }
