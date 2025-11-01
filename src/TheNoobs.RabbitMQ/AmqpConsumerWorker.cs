@@ -2,10 +2,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TheNoobs.RabbitMQ.Abstractions;
-using TheNoobs.RabbitMQ.Client.Abstractions;
 using TheNoobs.Results.Extensions;
 
-namespace TheNoobs.RabbitMQ.Client;
+namespace TheNoobs.RabbitMQ;
 
 internal class AmqpConsumerWorker: IHostedService
 {

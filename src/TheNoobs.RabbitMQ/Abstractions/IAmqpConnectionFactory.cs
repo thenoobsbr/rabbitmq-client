@@ -1,7 +1,7 @@
 using RabbitMQ.Client;
 using TheNoobs.Results;
 
-namespace TheNoobs.RabbitMQ.Client.Abstractions;
+namespace TheNoobs.RabbitMQ.Abstractions;
 
 public interface IAmqpConnectionFactory
 {

@@ -1,0 +1,19 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/SolutionFolder/">
+    <File Path=".devops/azuredevops.yml" />
+    <File Path=".devops/variables.yml" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/TheNoobs.RabbitMQ.Abstractions/TheNoobs.RabbitMQ.Abstractions.csproj" />
+    <Project Path="src/TheNoobs.RabbitMQ/TheNoobs.RabbitMQ.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TheNoobs.RabbitMQ.Tests/TheNoobs.RabbitMQ.Tests.csproj" />
+  </Folder>
+</Solution>

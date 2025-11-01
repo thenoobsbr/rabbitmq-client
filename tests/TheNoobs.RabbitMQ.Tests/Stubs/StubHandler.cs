@@ -1,7 +1,7 @@
 ﻿using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.Results;
 
-namespace TheNoobs.RabbitMQ.Client.Tests.Stubs;
+namespace TheNoobs.RabbitMQ.Tests.Stubs;
 
 public abstract class StubHandler<TResponse> : IAmqpConsumer<StubMessage, TResponse>
     where TResponse : notnull

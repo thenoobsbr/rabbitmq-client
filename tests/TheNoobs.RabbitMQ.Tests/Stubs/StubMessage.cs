@@ -1,4 +1,4 @@
-﻿namespace TheNoobs.RabbitMQ.Client.Tests.Stubs;
+﻿namespace TheNoobs.RabbitMQ.Tests.Stubs;
 
 public class StubMessage
 {

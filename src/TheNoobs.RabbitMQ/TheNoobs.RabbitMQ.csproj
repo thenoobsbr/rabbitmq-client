@@ -18,7 +18,7 @@
     <LangVersion>default</LangVersion>
     <PackageIcon>icon.png</PackageIcon>
 
-    <PackageId>TheNoobs.RabbitMQ.Client</PackageId>
+    <PackageId>TheNoobs.RabbitMQ</PackageId>
     <Description>The RabbitMQ client for .NET</Description>
     <PackageProjectUrl>https://github.com/thenoobsbr/rabbitmq-client</PackageProjectUrl>
     <RepositoryUrl>https://github.com/thenoobsbr/rabbitmq-client</RepositoryUrl>

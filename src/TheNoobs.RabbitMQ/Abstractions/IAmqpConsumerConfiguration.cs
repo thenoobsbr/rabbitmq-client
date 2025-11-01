@@ -1,6 +1,4 @@
-using TheNoobs.RabbitMQ.Abstractions;
-
-namespace TheNoobs.RabbitMQ.Client.Abstractions;
+namespace TheNoobs.RabbitMQ.Abstractions;
 
 public interface IAmqpConsumerConfiguration
 {

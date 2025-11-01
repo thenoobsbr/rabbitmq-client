@@ -1,7 +1,7 @@
 ﻿using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.Results;
 
-namespace TheNoobs.RabbitMQ.Client.Tests.Stubs;
+namespace TheNoobs.RabbitMQ.Tests.Stubs;
 
 public class PipelineHandler<T, TOut> : IAmqpConsumerPipeline<T, TOut>
     where T : notnull

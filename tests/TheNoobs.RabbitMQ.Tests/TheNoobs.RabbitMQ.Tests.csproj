@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <RootNamespace>TheNoobs.RabbitMQ.Tests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,7 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\TheNoobs.RabbitMQ.Client\TheNoobs.RabbitMQ.Client.csproj" />
+    <ProjectReference Include="..\..\src\TheNoobs.RabbitMQ\TheNoobs.RabbitMQ.csproj" />
   </ItemGroup>
 
 </Project>

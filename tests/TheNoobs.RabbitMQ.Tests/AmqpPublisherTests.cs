@@ -5,11 +5,11 @@ using Shouldly;
 using Testcontainers.RabbitMq;
 using Testcontainers.Xunit;
 using TheNoobs.RabbitMQ.Abstractions;
-using TheNoobs.RabbitMQ.Client.Tests.Stubs;
+using TheNoobs.RabbitMQ.Tests.Stubs;
 using TheNoobs.Results;
 using Xunit.Abstractions;
 
-namespace TheNoobs.RabbitMQ.Client.Tests;
+namespace TheNoobs.RabbitMQ.Tests;
 
 public class AmqpPublisherTests(ITestOutputHelper output)
     : ContainerTest<RabbitMqBuilder, RabbitMqContainer>(output)

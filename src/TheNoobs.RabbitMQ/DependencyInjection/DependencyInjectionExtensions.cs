@@ -3,9 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.RabbitMQ.Abstractions.Attributes;
-using TheNoobs.RabbitMQ.Client.Abstractions;
 
-namespace TheNoobs.RabbitMQ.Client.DependencyInjection;
+namespace TheNoobs.RabbitMQ.DependencyInjection;
 
 public static class DependencyInjectionExtensions
 {

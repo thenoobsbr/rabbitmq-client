@@ -1,14 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using TheNoobs.RabbitMQ.Abstractions;
-using TheNoobs.RabbitMQ.Client.Abstractions;
 using TheNoobs.Results;
 using TheNoobs.Results.Abstractions;
 using TheNoobs.Results.Extensions;
 using TheNoobs.Results.Types;
 using Void = TheNoobs.Results.Types.Void;
 
-namespace TheNoobs.RabbitMQ.Client;
+namespace TheNoobs.RabbitMQ;
 
 public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
 {

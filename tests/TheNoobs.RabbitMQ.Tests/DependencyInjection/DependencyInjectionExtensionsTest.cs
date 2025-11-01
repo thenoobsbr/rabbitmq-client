@@ -5,13 +5,13 @@ using Shouldly;
 using Testcontainers.RabbitMq;
 using Testcontainers.Xunit;
 using TheNoobs.RabbitMQ.Abstractions;
-using TheNoobs.RabbitMQ.Client.DependencyInjection;
-using TheNoobs.RabbitMQ.Client.Tests.Stubs;
+using TheNoobs.RabbitMQ.DependencyInjection;
+using TheNoobs.RabbitMQ.Tests.Stubs;
 using Xunit.Abstractions;
-using EventHandler = TheNoobs.RabbitMQ.Client.Tests.Stubs.EventHandler;
+using EventHandler = TheNoobs.RabbitMQ.Tests.Stubs.EventHandler;
 using Void = TheNoobs.Results.Types.Void;
 
-namespace TheNoobs.RabbitMQ.Client.Tests.DependencyInjection;
+namespace TheNoobs.RabbitMQ.Tests.DependencyInjection;
 
 public class DependencyInjectionExtensionsTest(ITestOutputHelper output)
     : ContainerTest<RabbitMqBuilder, RabbitMqContainer>(output)

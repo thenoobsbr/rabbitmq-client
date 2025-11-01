@@ -1,6 +1,6 @@
 ﻿using TheNoobs.RabbitMQ.Abstractions;
 
-namespace TheNoobs.RabbitMQ.Client;
+namespace TheNoobs.RabbitMQ;
 
 public sealed class AmqpMessage<T> : IAmqpMessage<T>
 where T : notnull

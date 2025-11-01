@@ -2,7 +2,7 @@
 using TheNoobs.Results;
 using Void = TheNoobs.Results.Types.Void;
 
-namespace TheNoobs.RabbitMQ.Client.Tests.Stubs;
+namespace TheNoobs.RabbitMQ.Tests.Stubs;
 
 [AmqpQueue("test")]
 public class EventHandler : StubHandler<Void>

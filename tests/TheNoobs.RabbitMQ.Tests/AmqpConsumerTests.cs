@@ -6,16 +6,15 @@ using Shouldly;
 using Testcontainers.RabbitMq;
 using Testcontainers.Xunit;
 using TheNoobs.RabbitMQ.Abstractions;
-using TheNoobs.RabbitMQ.Client.Abstractions;
-using TheNoobs.RabbitMQ.Client.Tests.Stubs;
+using TheNoobs.RabbitMQ.Tests.Stubs;
 using TheNoobs.Results;
 using TheNoobs.Results.Extensions;
 using TheNoobs.Results.Types;
 using Xunit.Abstractions;
-using EventHandler = TheNoobs.RabbitMQ.Client.Tests.Stubs.EventHandler;
+using EventHandler = TheNoobs.RabbitMQ.Tests.Stubs.EventHandler;
 using Void = TheNoobs.Results.Types.Void;
 
-namespace TheNoobs.RabbitMQ.Client.Tests;
+namespace TheNoobs.RabbitMQ.Tests;
 
 public class AmqpConsumerTests(ITestOutputHelper output)
     : ContainerTest<RabbitMqBuilder, RabbitMqContainer>(output)

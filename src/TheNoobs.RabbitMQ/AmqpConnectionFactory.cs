@@ -1,9 +1,9 @@
 using RabbitMQ.Client;
-using TheNoobs.RabbitMQ.Client.Abstractions;
+using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.Results;
 using TheNoobs.Results.Types;
 
-namespace TheNoobs.RabbitMQ.Client;
+namespace TheNoobs.RabbitMQ;
 
 public class AmqpConnectionFactory : IAmqpConnectionFactory
 {
