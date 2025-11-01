@@ -7,7 +7,6 @@ using Testcontainers.Xunit;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.RabbitMQ.Client.Tests.Stubs;
 using TheNoobs.Results;
-using TheNoobs.Results.Extensions;
 using Xunit.Abstractions;
 
 namespace TheNoobs.RabbitMQ.Client.Tests;
@@ -30,15 +29,15 @@ public class AmqpPublisherTests(ITestOutputHelper output)
         await using var channel = await connection.CreateChannelAsync();
         await channel.QueueDeclareAsync(randomQueue, false, false, false);
         
-        var publisher = new AmqpPublisher(amqpConnectionFactory, serializer, null);
-        var result = await AmqpMessage<StubMessage>.Create(new StubMessage()
-            {
-                Message = "Test message"
-            }).BindAsync(x => publisher.PublishAsync(
+        var publisher = new AmqpPublisher(amqpConnectionFactory, serializer);
+        var result = await publisher.PublishAsync(
             AmqpExchangeName.Direct,
             randomQueue,
-            x.Value,
-            CancellationToken.None));
+            new StubMessage()
+            {
+                Message = "Test message"
+            },
+            CancellationToken.None);
         result.IsSuccess.ShouldBeTrue();
         
         var messageCount = await channel.MessageCountAsync(randomQueue);
@@ -65,15 +64,15 @@ public class AmqpPublisherTests(ITestOutputHelper output)
         await using var connection = await connectionFactory.CreateConnectionAsync();
         await using var channel = await connection.CreateChannelAsync();
         
-        var publisher = new AmqpPublisher(amqpConnectionFactory, serializer, null);
-        await AmqpMessage<StubMessage>.Create(new StubMessage()
-        {
-            Message = "Test message"
-        }).BindAsync(x => publisher.PublishAsync(
+        var publisher = new AmqpPublisher(amqpConnectionFactory, serializer);
+        await publisher.PublishAsync(
             "test",
             randomQueue,
-            x.Value,
-            CancellationToken.None));
+            new StubMessage()
+            {
+                Message = "Test message"
+            },
+            CancellationToken.None);
         
         await channel.ExchangeDeclarePassiveAsync("test")
             .ShouldNotThrowAsync();
@@ -109,16 +108,16 @@ public class AmqpPublisherTests(ITestOutputHelper output)
         };
         await channel.BasicConsumeAsync(randomQueue, true, consumer);
         
-        var publisher = new AmqpPublisher(amqpConnectionFactory, serializer, null);
-        var result = await AmqpMessage<StubMessage>.Create(new StubMessage()
-        {
-            Message = "Test message"
-        }).BindAsync(x => publisher.SendAsync<StubMessage, StubMessage>(
+        var publisher = new AmqpPublisher(amqpConnectionFactory, serializer);
+        var result = await publisher.SendAsync<StubMessage, StubMessage>(
             AmqpExchangeName.Direct,
             randomQueue,
-            x.Value,
+            new StubMessage()
+            {
+                Message = "Test message"
+            },
             TimeSpan.FromSeconds(180),
-            CancellationToken.None));
+            CancellationToken.None);
         result.IsSuccess.ShouldBeTrue();
         
         result.Value.Message.ShouldBe("Test message - Received");

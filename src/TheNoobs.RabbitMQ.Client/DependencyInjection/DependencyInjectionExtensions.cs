@@ -1,11 +1,9 @@
-using System.Diagnostics;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.RabbitMQ.Abstractions.Attributes;
 using TheNoobs.RabbitMQ.Client.Abstractions;
-using TheNoobs.RabbitMQ.Client.OpenTelemetry;
 
 namespace TheNoobs.RabbitMQ.Client.DependencyInjection;
 
@@ -21,41 +19,67 @@ public static class DependencyInjectionExtensions
         services.AddSingleton<IAmqpConnectionFactory>(new AmqpConnectionFactory(connectionFactory));
         services.AddSingleton<IAmqpPublisher, AmqpPublisher>();
         services.AddSingleton(typeof(IAmqpSerializer), amqpBuilder.SerializerType);
-        if (amqpBuilder.TelemetrySource is not null)
-        {
-            services.AddSingleton(new OpenTelemetryPropagator(amqpBuilder.TelemetrySource));
-        }
         services.AddHostedService<AmqpConsumerWorker>();
-        return services.AddConsumers(amqpBuilder.Assemblies);
+        return services
+            .AddConsumers(amqpBuilder)
+            .AddPipelines(amqpBuilder);
     }
-
-    private static IServiceCollection AddConsumers(this IServiceCollection services, IEnumerable<Assembly> assemblies)
+    
+    private static IServiceCollection AddPipelines(this IServiceCollection services, AmqpConfigurationBuilder amqpBuilder)
     {
-        var consumerHandlers = assemblies
+        var pipelineHandlers = amqpBuilder.PipelinesAssemblies
             .SelectMany(x => x.GetTypes())
             .Where(x =>
-                x.GetInterface(typeof(IAmqpConsumer<>).Name) != null && x is { IsClass: true }
+                x.GetInterface(typeof(IAmqpConsumerPipeline<,>).Name) != null && x is { IsClass: true, IsAbstract: false }
             )
             .ToList();
-        foreach (var handler in consumerHandlers)
+        foreach (var handlerType in pipelineHandlers)
         {
-            services.AddScoped(handler);
-            var queueAttribute = handler.GetCustomAttribute<AmqpQueueAttribute>();
+            services.AddScoped(typeof(IAmqpConsumerPipeline<,>), handlerType);
+        }
+        return services;
+    }
+
+    private static IServiceCollection AddConsumers(this IServiceCollection services, AmqpConfigurationBuilder amqpBuilder)
+    {
+        var consumerHandlers = amqpBuilder.ConsumersAssemblies
+            .SelectMany(x => x.GetTypes())
+            .Where(x =>
+                x.GetInterface(typeof(IAmqpConsumer<,>).Name) != null && x is { IsClass: true, IsAbstract: false }
+            )
+            .ToList();
+        foreach (var handlerType in consumerHandlers)
+        {
+            services.AddScoped(handlerType);
+
+            var consumerType = handlerType.GetInterface(typeof(IAmqpConsumer<,>).Name)!;
+            services.AddScoped(consumerType, provider =>
+            {
+                var pipelineType = typeof(IAmqpConsumerPipeline<,>).MakeGenericType(consumerType.GenericTypeArguments);
+                var pipelines = provider.GetServices(pipelineType);
+                var pipelineHandlerType =
+                    typeof(AmqpConsumerPipelineHandler<,>).MakeGenericType(consumerType.GenericTypeArguments);
+                var handler = provider.GetRequiredService(handlerType);
+                return Activator.CreateInstance(pipelineHandlerType, handler, pipelines)
+                       ?? throw new InvalidOperationException($"Unable to instantiate pipeline handler for {handlerType.Name}");
+            });
+            var queueAttribute = handlerType.GetCustomAttribute<AmqpQueueAttribute>();
             
             if (queueAttribute == null)
             {
-                throw new InvalidOperationException($"AmqpQueueAttribute not found in {handler.Name}");
+                throw new InvalidOperationException($"AmqpQueueAttribute not found in {handlerType.Name}");
             }
-            
-            var retryAttribute = handler.GetCustomAttribute<AmqpRetryAttribute>();
-            var queueBindings = handler
+
+            var retryAttribute = handlerType
+                .GetCustomAttribute<AmqpRetryDelayAttribute>();
+            var queueBindings = handlerType
                 .GetCustomAttributes<AmqpQueueBindingAttribute>()
                 .Cast<IAmqpQueueBinding>()
                 .ToArray();
             services.AddSingleton(typeof(IAmqpConsumerConfiguration),
                 new AmqpConsumerConfiguration(
-                    handler,
-                    retryAttribute,
+                    handlerType,
+                    retryAttribute?.Delay ?? amqpBuilder.DefaultRetryDelay,
                     queueAttribute.QueueName,
                     queueBindings));
         }
@@ -67,8 +91,9 @@ public static class DependencyInjectionExtensions
     {
         internal string ConnectionString { get; private set; } = string.Empty;
         internal Type SerializerType { get; private set; } = typeof(AmqpDefaultJsonSerializer);
-        internal List<Assembly> Assemblies { get; } = new();
-        internal ActivitySource? TelemetrySource { get; private set; }
+        internal List<Assembly> ConsumersAssemblies { get; } = new();
+        internal List<Assembly> PipelinesAssemblies { get; } = new();
+        internal TimeSpan DefaultRetryDelay { get; private set; } = TimeSpan.FromMinutes(1);
 
         public IAmqpConfigurationBuilder UseConnectionString(string connectionString)
         {
@@ -84,23 +109,39 @@ public static class DependencyInjectionExtensions
 
         public IAmqpConfigurationBuilder AddConsumersFromAssemblies(params Assembly[] assemblies)
         {
-            Assemblies.AddRange(assemblies);
+            ConsumersAssemblies.AddRange(assemblies);
             return this;
         }
 
-        public IAmqpConfigurationBuilder UseOpenTelemetry(ActivitySource activitySource)
+        public IAmqpConfigurationBuilder AddPipelinesFromAssemblies(params Assembly[] assemblies)
         {
-            TelemetrySource = activitySource;
+            PipelinesAssemblies.AddRange(assemblies);
+            return this;
+        }
+        
+        public IAmqpConfigurationBuilder AddConsumersAndPipelinesFromAssemblies(params Assembly[] assemblies)
+        {
+            AddConsumersAndPipelinesFromAssemblies(assemblies);
+            AddPipelinesFromAssemblies(assemblies);
+            return this;
+        }
+        
+        public IAmqpConfigurationBuilder UseDefaultRetryDelay(TimeSpan delay)
+        {
+            if (delay.TotalSeconds < 1)
+            {
+                throw new ArgumentException("The retry delay must be greater than 1 seconds");
+            }
+            DefaultRetryDelay = delay;
             return this;
         }
     }
     
-    class AmqpConsumerConfiguration(Type handlerType, IAmqpRetry? retry, AmqpQueueName queueName, IAmqpQueueBinding[] bindings) : IAmqpConsumerConfiguration
+    class AmqpConsumerConfiguration(Type handlerType, TimeSpan retryDelay, AmqpQueueName queueName, IAmqpQueueBinding[] bindings) : IAmqpConsumerConfiguration
     {
         public Type HandlerType => handlerType;
-        public Type RequestType => handlerType.GetInterface(typeof(IAmqpConsumer<>).Name)!.GetGenericArguments().First();
         public AmqpQueueName QueueName => queueName;
-        public IAmqpRetry? Retry => retry;
+        public TimeSpan RetryDelay => retryDelay;
         public IAmqpQueueBinding[] Bindings => bindings;
     }
 }

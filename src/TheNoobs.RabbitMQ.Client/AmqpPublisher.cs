@@ -2,7 +2,6 @@
 using RabbitMQ.Client.Events;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.RabbitMQ.Client.Abstractions;
-using TheNoobs.RabbitMQ.Client.OpenTelemetry;
 using TheNoobs.Results;
 using TheNoobs.Results.Abstractions;
 using TheNoobs.Results.Extensions;
@@ -15,22 +14,19 @@ public class AmqpPublisher : IAmqpPublisher
 {
     private readonly IAmqpConnectionFactory _connectionFactory;
     private readonly IAmqpSerializer _serializer;
-    private readonly OpenTelemetryPropagator? _openTelemetryPropagator;
 
     public AmqpPublisher(
         IAmqpConnectionFactory connectionFactory,
-        IAmqpSerializer serializer,
-        OpenTelemetryPropagator? openTelemetryPropagator)
+        IAmqpSerializer serializer)
     {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-        _openTelemetryPropagator = openTelemetryPropagator;
     }
     
     public ValueTask<Result<Void>> PublishAsync<T>(
         AmqpExchangeName exchangeName,
         AmqpRoutingKey routingKey,
-        AmqpMessage<T> message,
+        T message,
         CancellationToken cancellationToken)
         where T : notnull
     {
@@ -40,20 +36,20 @@ public class AmqpPublisher : IAmqpPublisher
             .TapAsync(DisposeChannelAsync);
     }
 
-    public ValueTask<Result<TOut>> SendAsync<TIn, TOut>(
+    public ValueTask<Result<TOut>> SendAsync<T, TOut>(
         AmqpExchangeName amqpExchangeName,
         AmqpRoutingKey amqpRoutingKey,
-        AmqpMessage<TIn> amqpMessage,
+        T message,
         TimeSpan waitTimeout,
-        CancellationToken cancellationToken) where TIn : notnull where TOut : notnull
+        CancellationToken cancellationToken) where T : notnull where TOut : notnull
     {
         return _connectionFactory.CreateConnectionAsync(cancellationToken)
             .BindAsync(x => CreateChannelAsync(x.Value, cancellationToken))
-            .BindAsync(x => SendAsync<TIn, TOut>(
+            .BindAsync(x => SendAsync<T, TOut>(
                 x.Value,
                 amqpExchangeName,
                 amqpRoutingKey,
-                amqpMessage,
+                message,
                 waitTimeout,
                 cancellationToken: cancellationToken));
     }
@@ -91,14 +87,14 @@ public class AmqpPublisher : IAmqpPublisher
         IChannel channel,
         AmqpExchangeName exchangeName,
         AmqpRoutingKey routingKey,
-        AmqpMessage<T> message,
+        T message,
         TimeSpan waitTimeout,
         CancellationToken cancellationToken)
         where T : notnull
         where TOut : notnull
     {
         return DeclareExchangeAsync(channel, exchangeName, cancellationToken)
-            .BindAsync(_ => _serializer.Serialize(message.Value))
+            .BindAsync(_ => _serializer.Serialize(message))
             .BindAsync(SendMessageAsync)
             .BindAsync(x => _serializer.Deserialize(typeof(TOut), x.Value))
             .BindAsync(x => new Result<TOut>((TOut)x.Value))
@@ -109,8 +105,8 @@ public class AmqpPublisher : IAmqpPublisher
             try
             {
                 var properties = new BasicProperties();
-                properties.CorrelationId = message.CorrelationId;
-                _openTelemetryPropagator?.Propagate(properties);
+                properties.CorrelationId = Guid.NewGuid().ToString();
+                
                 var replyQueue = await channel.QueueDeclareAsync(
                     Guid.NewGuid().ToString(),
                     exclusive: true,
@@ -156,12 +152,12 @@ public class AmqpPublisher : IAmqpPublisher
         IChannel channel,
         AmqpExchangeName exchangeName,
         AmqpRoutingKey routingKey,
-        AmqpMessage<T> message,
+        T message,
         CancellationToken cancellationToken)
         where T : notnull
     {
         return DeclareExchangeAsync(channel, exchangeName, cancellationToken)
-            .BindAsync(_ => _serializer.Serialize(message.Value))
+            .BindAsync(_ => _serializer.Serialize(message))
             .BindAsync(PublishMessageAsync);
 
         async ValueTask<Result<Void>> PublishMessageAsync(Result<byte[]> serializedData)
@@ -169,7 +165,7 @@ public class AmqpPublisher : IAmqpPublisher
             try
             {
                 var properties = new BasicProperties();
-                _openTelemetryPropagator?.Propagate(properties);
+                
                 await channel.BasicPublishAsync(
                     exchangeName.Value,
                     routingKey.Value,
@@ -177,6 +173,7 @@ public class AmqpPublisher : IAmqpPublisher
                     properties,
                     serializedData.Value,
                     cancellationToken);
+                
                 return Void.Value;
             } catch (Exception e)
             {

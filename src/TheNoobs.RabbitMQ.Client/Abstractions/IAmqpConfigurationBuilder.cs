@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 using TheNoobs.RabbitMQ.Abstractions;
 
@@ -10,5 +9,7 @@ public interface IAmqpConfigurationBuilder
     IAmqpConfigurationBuilder UseSerializer<TSerializer>()
         where TSerializer : IAmqpSerializer;
     IAmqpConfigurationBuilder AddConsumersFromAssemblies(params Assembly[] assemblies);
-    IAmqpConfigurationBuilder UseOpenTelemetry(ActivitySource source);
+    IAmqpConfigurationBuilder AddPipelinesFromAssemblies(params Assembly[] assemblies);
+    IAmqpConfigurationBuilder AddConsumersAndPipelinesFromAssemblies(params Assembly[] assemblies);
+    IAmqpConfigurationBuilder UseDefaultRetryDelay(TimeSpan delay);
 }

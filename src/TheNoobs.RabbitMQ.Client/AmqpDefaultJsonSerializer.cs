@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Serialization;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.Results;
 using TheNoobs.Results.Types;
@@ -9,9 +10,15 @@ public class AmqpDefaultJsonSerializer : IAmqpSerializer
 {
     private readonly JsonSerializerOptions _options;
 
-    public AmqpDefaultJsonSerializer(JsonSerializerOptions options)
+    public AmqpDefaultJsonSerializer(JsonSerializerOptions? options = null)
     {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        _options = options ?? new JsonSerializerOptions()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = false,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+            Converters = { new JsonStringEnumConverter() }
+        };
     }
     public Result<byte[]> Serialize(object value)
     {

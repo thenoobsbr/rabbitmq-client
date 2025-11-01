@@ -3,20 +3,17 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.RabbitMQ.Client.Abstractions;
-using TheNoobs.RabbitMQ.Client.OpenTelemetry;
-using TheNoobs.Results.Abstractions;
 using TheNoobs.Results.Extensions;
 
 namespace TheNoobs.RabbitMQ.Client;
 
-public class AmqpConsumerWorker: IHostedService
+internal class AmqpConsumerWorker: IHostedService
 {
     private readonly ILogger<AmqpConsumerWorker> _logger;
     private readonly IAmqpConnectionFactory _connectionFactory;
     private readonly IEnumerable<IAmqpConsumerConfiguration> _consumerConfigurations;
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly IAmqpSerializer _serializer;
-    private readonly OpenTelemetryPropagator? _openTelemetryPropagator;
     private AmqpConsumer[] _consumers;
 
     public AmqpConsumerWorker(
@@ -24,15 +21,13 @@ public class AmqpConsumerWorker: IHostedService
         IAmqpConnectionFactory connectionFactory,
         IEnumerable<IAmqpConsumerConfiguration> consumerConfigurations,
         IServiceScopeFactory serviceScopeFactory,
-        IAmqpSerializer serializer,
-        OpenTelemetryPropagator? openTelemetryPropagator)
+        IAmqpSerializer serializer)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
         _consumerConfigurations = consumerConfigurations ?? throw new ArgumentNullException(nameof(consumerConfigurations));
         _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-        _openTelemetryPropagator = openTelemetryPropagator;
         _consumers = [];
     }
 
@@ -52,7 +47,6 @@ public class AmqpConsumerWorker: IHostedService
                             _serializer,
                             x,
                             _serviceScopeFactory,
-                            _openTelemetryPropagator,
                             cancellationToken)
                         .BindAsync(xy => xy.Value.StartAsync(cancellationToken)))
                 .MergeAsync();
