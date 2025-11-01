@@ -12,6 +12,7 @@ using TheNoobs.Results;
 using TheNoobs.Results.Extensions;
 using TheNoobs.Results.Types;
 using Xunit.Abstractions;
+using EventHandler = TheNoobs.RabbitMQ.Client.Tests.Stubs.EventHandler;
 using Void = TheNoobs.Results.Types.Void;
 
 namespace TheNoobs.RabbitMQ.Client.Tests;
@@ -32,9 +33,9 @@ public class AmqpConsumerTests(ITestOutputHelper output)
         var configuration = Substitute.For<IAmqpConsumerConfiguration>();
         configuration.QueueName.Returns(AmqpQueueName.Create("test").Value);
         configuration.HandlerType.Returns(typeof(ITestMessage));
-        configuration.RequestType.Returns(typeof(StubMessage));
+        configuration.RetryDelay.Returns(TimeSpan.FromSeconds(5));
         
-        var handler = new StubHandler<Void>((_, _) => ValueTask.FromResult(new Result<Void>(Void.Value)));
+        var handler = new EventHandler((_, _) => ValueTask.FromResult(new Result<Void>(Void.Value)));
         
         var consumerResult = await SetupConsumer(amqpConnectionFactory, serializer, configuration, handler);
 
@@ -58,12 +59,12 @@ public class AmqpConsumerTests(ITestOutputHelper output)
         
         var configuration = Substitute.For<IAmqpConsumerConfiguration>();
         configuration.QueueName.Returns(AmqpQueueName.Create("test").Value);
-        configuration.HandlerType.Returns(typeof(StubHandler<Void>));
-        configuration.RequestType.Returns(typeof(StubMessage));
+        configuration.HandlerType.Returns(typeof(EventHandler));
+        configuration.RetryDelay.Returns(TimeSpan.FromSeconds(5));
         
         var semaphore = new SemaphoreSlim(0);
         
-        var handler = new StubHandler<Void>((message, cancellationToken) =>
+        var handler = new EventHandler((message, cancellationToken) =>
         {
             message.Message.ShouldBe("Test message");
             cancellationToken.ShouldBeOfType<CancellationToken>();
@@ -100,12 +101,12 @@ public class AmqpConsumerTests(ITestOutputHelper output)
         
         var configuration = Substitute.For<IAmqpConsumerConfiguration>();
         configuration.QueueName.Returns(AmqpQueueName.Create("test").Value);
-        configuration.HandlerType.Returns(typeof(StubHandler<Void>));
-        configuration.RequestType.Returns(typeof(StubMessage));
+        configuration.HandlerType.Returns(typeof(EventHandler));
+        configuration.RetryDelay.Returns(TimeSpan.FromSeconds(5));
         
         var semaphore = new SemaphoreSlim(0);
         
-        var handler = new StubHandler<Void>((_, _) =>
+        var handler = new EventHandler((_, _) =>
         {
             semaphore.Release();
             return ValueTask.FromResult(new Result<Void>(Void.Value));
@@ -132,7 +133,7 @@ public class AmqpConsumerTests(ITestOutputHelper output)
     }
     
     [Fact]
-    public async Task Should_Send_Message_To_Dead_Letter_Queue_When_Handler_Fails_And_Retry_Not_Set()
+    public async Task Should_Send_Message_To_Dead_Letter_Queue_When_Handler_Fails_With_NoRetryFail()
     {
         var connectionFactory = new ConnectionFactory
         {
@@ -143,16 +144,15 @@ public class AmqpConsumerTests(ITestOutputHelper output)
         
         var configuration = Substitute.For<IAmqpConsumerConfiguration>();
         configuration.QueueName.Returns(AmqpQueueName.Create("test").Value);
-        configuration.HandlerType.Returns(typeof(StubHandler<Void>));
-        configuration.RequestType.Returns(typeof(StubMessage));
-        configuration.Retry.Returns((IAmqpRetry?)null);
+        configuration.HandlerType.Returns(typeof(EventHandler));
+        configuration.RetryDelay.Returns(TimeSpan.FromSeconds(5));
         
         var semaphore = new SemaphoreSlim(0);
         
-        var handler = new StubHandler<Void>((_, _) =>
+        var handler = new EventHandler((_, _) =>
         {
             semaphore.Release();
-            return ValueTask.FromResult(new Result<Void>(new ServerErrorFail()));
+            return ValueTask.FromResult(new Result<Void>(new NoRetryFail(new ServerErrorFail())));
         });
         
         var consumerResult = await SetupConsumer(amqpConnectionFactory, serializer, configuration, handler);
@@ -181,7 +181,7 @@ public class AmqpConsumerTests(ITestOutputHelper output)
     }
     
     [Fact]
-    public async Task Should_Retry_Message_When_Handler_Fails_And_Retry_Is_Set()
+    public async Task Should_Retry_Message_When_Handler_Fails()
     {
         var connectionFactory = new ConnectionFactory
         {
@@ -189,19 +189,15 @@ public class AmqpConsumerTests(ITestOutputHelper output)
         };
         var amqpConnectionFactory = new AmqpConnectionFactory(connectionFactory);
         var serializer = new AmqpDefaultJsonSerializer(new JsonSerializerOptions());
-
-        var retry = Substitute.For<IAmqpRetry>();
-        retry.GetNextDelay(Arg.Any<int>()).Returns(new Result<TimeSpan>(TimeSpan.FromSeconds(5)));
         
         var configuration = Substitute.For<IAmqpConsumerConfiguration>();
         configuration.QueueName.Returns(AmqpQueueName.Create("test").Value);
-        configuration.HandlerType.Returns(typeof(StubHandler<Void>));
-        configuration.RequestType.Returns(typeof(StubMessage));
-        configuration.Retry.Returns(retry);
+        configuration.HandlerType.Returns(typeof(EventHandler));
+        configuration.RetryDelay.Returns(TimeSpan.FromSeconds(5));
         
         var semaphore = new SemaphoreSlim(0);
         
-        var handler = new StubHandler<Void>((_, _) =>
+        var handler = new EventHandler((_, _) =>
         {
             semaphore.Release();
             return ValueTask.FromResult(new Result<Void>(new ServerErrorFail()));
@@ -241,6 +237,7 @@ public class AmqpConsumerTests(ITestOutputHelper output)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(StubHandler<TResponse>)).Returns(handler);
+        serviceProvider.GetService(typeof(IAmqpConsumer<StubMessage, TResponse>)).Returns(handler);
         
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(serviceProvider);
@@ -252,8 +249,7 @@ public class AmqpConsumerTests(ITestOutputHelper output)
                 amqpConnectionFactory,
                 serializer,
                 configuration,
-                serviceScopeFactory,
-                null,
+                serviceScopeFactory, 
                 CancellationToken.None)
             .BindAsync(x => x.Value.StartAsync(CancellationToken.None));
         

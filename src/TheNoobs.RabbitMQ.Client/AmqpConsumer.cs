@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.RabbitMQ.Client.Abstractions;
-using TheNoobs.RabbitMQ.Client.OpenTelemetry;
 using TheNoobs.Results;
 using TheNoobs.Results.Abstractions;
 using TheNoobs.Results.Extensions;
@@ -19,20 +18,17 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
     private readonly IAmqpSerializer _serializer;
     private readonly IAmqpConsumerConfiguration _consumerConfiguration;
     private readonly IServiceScopeFactory _serviceScopeFactory;
-    private readonly OpenTelemetryPropagator? _openTelemetryPropagator;
 
     public AmqpConsumer(
         IChannel channel,
         IAmqpSerializer serializer,
         IAmqpConsumerConfiguration consumerConfiguration,
-        IServiceScopeFactory serviceScopeFactory,
-        OpenTelemetryPropagator? openTelemetryPropagator) : base(channel)
+        IServiceScopeFactory serviceScopeFactory) : base(channel)
     {
         _channel = channel ?? throw new ArgumentNullException(nameof(channel));
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         _consumerConfiguration = consumerConfiguration ?? throw new ArgumentNullException(nameof(consumerConfiguration));
         _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
-        _openTelemetryPropagator = openTelemetryPropagator;
     }
 
     public override async Task HandleBasicDeliverAsync(
@@ -47,11 +43,11 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
     {
         try
         {
-            using var activity = _openTelemetryPropagator?.StartActivity(properties);
-            
             await using var scope = _serviceScopeFactory.CreateAsyncScope();
-            var handler = scope.ServiceProvider.GetRequiredService(_consumerConfiguration.HandlerType);
-            var request = _serializer.Deserialize(_consumerConfiguration.RequestType, body.Span);
+            var consumerType = _consumerConfiguration.HandlerType.GetInterface(typeof(IAmqpConsumer<,>).Name)!;
+            var requestType = consumerType.GenericTypeArguments.First();
+            var handler = scope.ServiceProvider.GetRequiredService(consumerType);
+            var request = _serializer.Deserialize(requestType, body.Span);
             if (!request.IsSuccess)
             {
                 await SendToDeadLetterAsync(properties, body, request.Fail);
@@ -59,8 +55,9 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
                 return;
             }
             
-            var method = handler.GetType().GetMethod(nameof(IAmqpConsumer<object>.HandleAsync), [
-                request.Value.GetType(),
+            var amqpRequestType = typeof(IAmqpMessage<>).MakeGenericType(requestType);
+            var method = handler.GetType().GetMethod("HandleAsync", [
+                amqpRequestType,
                 typeof(CancellationToken)
             ]);
 
@@ -73,7 +70,9 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
                 return;
             }
             
-            var invokeResult = method.Invoke(handler, [request.Value, cancellationToken])!;
+            var amqpMessageType = typeof(AmqpMessage<>).MakeGenericType(requestType);
+            var amqpMessage = Activator.CreateInstance(amqpMessageType, request.Value, properties.Headers ?? new Dictionary<string, object?>());
+            var invokeResult = method.Invoke(handler, [amqpMessage, cancellationToken])!;
             
             IResult result = invokeResult switch
             {
@@ -95,23 +94,18 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
                 return;
             }
 
-            if (_consumerConfiguration.Retry is not null)
+            if (result.Fail is not NoRetryFail)
             {
-                var retryResult = await RetryAsync(_consumerConfiguration.Retry, properties, body, result.Fail);
-
-                await (retryResult.IsSuccess
-                    ? _channel.BasicAckAsync(deliveryTag, false, cancellationToken)
-                    : _channel.BasicNackAsync(deliveryTag, false, true, cancellationToken));
-
+                await _channel.BasicNackAsync(deliveryTag, false, false, cancellationToken);
                 return;
             }
             
             await SendToDeadLetterAsync(properties, body, result.Fail);
-            await _channel.BasicNackAsync(deliveryTag, false, false, cancellationToken);
+            await _channel.BasicAckAsync(deliveryTag, false, cancellationToken);
         }
         catch
         {
-            await _channel.BasicNackAsync(deliveryTag, false, true, cancellationToken);
+            await _channel.BasicNackAsync(deliveryTag, false, false, cancellationToken);
         }
     }
 
@@ -158,7 +152,6 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
         {
             var basicProperties = new BasicProperties();
             basicProperties.CorrelationId = properties.CorrelationId;
-            _openTelemetryPropagator?.Propagate(basicProperties);
             
             var response = RpcResponse.Create(result, _serializer)
                 .Bind(x => _serializer.Serialize(x.Value));
@@ -176,66 +169,15 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
         }
     }
 
-    private async ValueTask<Result<Void>> RetryAsync(IAmqpRetry retry, IReadOnlyBasicProperties properties, ReadOnlyMemory<byte> body, Fail fail)
-    {
-        if (properties.Headers is null
-            || !properties.Headers.TryGetValue("x-attempt", out var value)
-            || value is not int attempt)
-        {
-            attempt = 1;
-        }
-
-        var basicProperties = new BasicProperties(properties);
-        
-        var retryResult = retry.GetNextDelay(attempt);
-        if (retryResult.IsSuccess)
-        {
-            var scheduleQueueName = _consumerConfiguration.QueueName.ScheduledQueueName(retryResult.Value);
-            
-            var arguments = new Dictionary<string, object?>();
-            
-            arguments.Add("x-dead-letter-exchange", "");
-            arguments.Add("x-dead-letter-routing-key", _consumerConfiguration.QueueName.Value);
-            arguments.Add("x-message-ttl", (int)retryResult.Value.TotalMilliseconds);
-            
-            await _channel.QueueDeclareAsync(scheduleQueueName.Value, true, false,
-                false, arguments);
-            basicProperties.Headers ??= new Dictionary<string, object?>();
-            basicProperties.Headers.Add("x-attempt", attempt + 1);
-            await _channel.BasicPublishAsync(
-                AmqpExchangeName.Direct,
-                scheduleQueueName.Value,
-                true,
-                basicProperties,
-                body);
-            return Void.Value;
-        }
-
-        if (retryResult.Fail is NoAttemptsAvailable && retry.SendToDeadLetter)
-        {
-            await SendToDeadLetterAsync(properties, body, fail);
-            return Void.Value;
-        }
-
-        if (retryResult.Fail is NoAttemptsAvailable && !retry.SendToDeadLetter)
-        {
-            return Void.Value;
-        }
-
-        return retryResult.Fail;
-    }
-
     private async ValueTask SendToDeadLetterAsync(IReadOnlyBasicProperties properties, ReadOnlyMemory<byte> body, Fail fail)
     {
-        var dlqQueue = _consumerConfiguration.QueueName.DeadLetterQueueName().Value;
-        
-        await _channel.QueueDeclareAsync(dlqQueue, true, false,
-            false);
+        var dlqQueue = _consumerConfiguration.QueueName.DeadLetterQueueName();
 
         var basicProperties = new BasicProperties(properties);
-        basicProperties.Headers ??= new Dictionary<string, object?>();
-        basicProperties.Headers.Remove("x-dlq-reason");
-        basicProperties.Headers.Add("x-dlq-reason", fail.Message);
+        basicProperties.Headers = new Dictionary<string, object?>(properties.Headers ?? new Dictionary<string, object?>())
+        {
+            ["x-dlq-reason"] = fail.Message
+        };
         await _channel.BasicPublishAsync(
             AmqpExchangeName.Direct,
             dlqQueue,
@@ -249,21 +191,19 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
         IAmqpSerializer serializer,
         IAmqpConsumerConfiguration consumerConfiguration,
         IServiceScopeFactory serviceScopeFactory,
-        OpenTelemetryPropagator? openTelemetryPropagator,
         CancellationToken cancellationToken)
     {
         return connectionFactory.CreateConnectionAsync(cancellationToken)
             .BindAsync(x => CreateChannelAsync(x.Value, cancellationToken))
-            .BindAsync(x => CreateQueueAsync(x.Value, consumerConfiguration, cancellationToken))
+            .BindAsync(x => CreateQueueTopologyAsync(x.Value, consumerConfiguration, cancellationToken))
             .BindAsync<Void, AmqpConsumer>(x => new AmqpConsumer(
                 x.GetValue<IChannel>().Value,
                 serializer,
                 consumerConfiguration,
-                serviceScopeFactory,
-                openTelemetryPropagator));
+                serviceScopeFactory));
     }
 
-    private static async ValueTask<Result<Void>> CreateQueueAsync(IChannel channel,
+    private static async ValueTask<Result<Void>> CreateQueueTopologyAsync(IChannel channel,
         IAmqpConsumerConfiguration consumerConfiguration, CancellationToken cancellationToken)
     {
         if (!consumerConfiguration.QueueName.AutoDeclare)
@@ -273,11 +213,45 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
         
         try
         {
-            await channel.QueueDeclareAsync(consumerConfiguration.QueueName, true, false, false, cancellationToken: cancellationToken);
+            var deadLetterQueueName = consumerConfiguration.QueueName.DeadLetterQueueName();
+            await channel.QueueDeclareAsync(
+                deadLetterQueueName,
+                true,
+                false,
+                false,
+                cancellationToken: cancellationToken);
+            
+            var scheduleQueueName = consumerConfiguration.QueueName.ScheduledQueueName(consumerConfiguration.RetryDelay);
+            await channel.QueueDeclareAsync(
+                scheduleQueueName,
+                true,
+                false,
+                false,
+                new Dictionary<string, object?>()
+                {
+                    ["x-dead-letter-exchange"] = "",
+                    ["x-dead-letter-routing-key"] = consumerConfiguration.QueueName.Value,
+                    ["x-message-ttl"] = (int)consumerConfiguration.RetryDelay.TotalMilliseconds
+                },
+                cancellationToken: cancellationToken);
+                
+            await channel.QueueDeclareAsync(
+                consumerConfiguration.QueueName,
+                true,
+                false,
+                false,
+                new Dictionary<string, object?>()
+                {
+                    ["x-dead-letter-exchange"] = "",
+                    ["x-dead-letter-routing-key"] = scheduleQueueName.Value,
+                },
+                cancellationToken: cancellationToken);
+            
             foreach (var binding in consumerConfiguration.Bindings)
             {
                 await channel.QueueBindAsync(consumerConfiguration.QueueName.Value, binding.ExchangeName, binding.RoutingKey, cancellationToken: cancellationToken);
             }
+            
             return Void.Value;
         }
         catch (Exception ex)

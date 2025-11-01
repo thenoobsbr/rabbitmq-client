@@ -7,17 +7,17 @@ public interface IAmqpPublisher
     ValueTask<Result<TheNoobs.Results.Types.Void>> PublishAsync<T>(
         AmqpExchangeName amqpExchangeName,
         AmqpRoutingKey amqpRoutingKey,
-        AmqpMessage<T> amqpMessage,
+        T amqpMessage,
         CancellationToken cancellationToken)
         where T : notnull;
     
     
-    ValueTask<Result<TOut>> SendAsync<TIn, TOut>(
+    ValueTask<Result<TOut>> SendAsync<T, TOut>(
         AmqpExchangeName amqpExchangeName,
         AmqpRoutingKey amqpRoutingKey,
-        AmqpMessage<TIn> amqpMessage,
+        T amqpMessage,
         TimeSpan waitTimeout,
         CancellationToken cancellationToken)
-        where TIn : notnull
+        where T : notnull
         where TOut : notnull;
 }
