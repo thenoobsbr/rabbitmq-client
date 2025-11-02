@@ -120,7 +120,7 @@ public static class DependencyInjectionExtensions
         
         public IAmqpConfigurationBuilder AddConsumersAndPipelinesFromAssemblies(params Assembly[] assemblies)
         {
-            AddConsumersAndPipelinesFromAssemblies(assemblies);
+            AddConsumersFromAssemblies(assemblies);
             AddPipelinesFromAssemblies(assemblies);
             return this;
         }
