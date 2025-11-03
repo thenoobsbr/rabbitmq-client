@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using TheNoobs.RabbitMQ.Abstractions;
 using TheNoobs.Results;
@@ -22,7 +23,12 @@ public class AmqpDefaultJsonSerializer : IAmqpSerializer
     }
     public Result<byte[]> Serialize(object value)
     {
-        return JsonSerializer.SerializeToUtf8Bytes(value, _options);
+        return value switch
+        {
+            char[] chars => Encoding.UTF8.GetBytes(chars),
+            string text => Encoding.UTF8.GetBytes(text),
+            _ => JsonSerializer.SerializeToUtf8Bytes(value, _options)
+        };
     }
 
     public Result<object> Deserialize(Type type, ReadOnlySpan<byte> value)

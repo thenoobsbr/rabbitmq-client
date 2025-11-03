@@ -21,7 +21,7 @@ public class AmqpPublisher : IAmqpPublisher
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
     }
-    
+
     public ValueTask<Result<Void>> PublishAsync<T>(
         AmqpExchangeName exchangeName,
         AmqpRoutingKey routingKey,
