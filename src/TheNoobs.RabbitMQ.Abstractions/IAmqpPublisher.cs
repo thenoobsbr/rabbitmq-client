@@ -11,11 +11,28 @@ public interface IAmqpPublisher
         CancellationToken cancellationToken)
         where T : notnull;
     
+    ValueTask<Result<TheNoobs.Results.Types.Void>> PublishAsync<T>(
+        AmqpExchangeName amqpExchangeName,
+        AmqpRoutingKey amqpRoutingKey,
+        T amqpMessage,
+        IDictionary<string, object?> headers,
+        CancellationToken cancellationToken)
+        where T : notnull;
     
     ValueTask<Result<TOut>> SendAsync<T, TOut>(
         AmqpExchangeName amqpExchangeName,
         AmqpRoutingKey amqpRoutingKey,
         T amqpMessage,
+        TimeSpan waitTimeout,
+        CancellationToken cancellationToken)
+        where T : notnull
+        where TOut : notnull;
+    
+    ValueTask<Result<TOut>> SendAsync<T, TOut>(
+        AmqpExchangeName amqpExchangeName,
+        AmqpRoutingKey amqpRoutingKey,
+        T amqpMessage,
+        IDictionary<string, object?> headers,
         TimeSpan waitTimeout,
         CancellationToken cancellationToken)
         where T : notnull

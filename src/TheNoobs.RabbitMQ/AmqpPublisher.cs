@@ -30,9 +30,20 @@ public class AmqpPublisher : IAmqpPublisher
         CancellationToken cancellationToken)
         where T : notnull
     {
+        return PublishAsync(exchangeName, routingKey, message, new Dictionary<string, object?>(), cancellationToken);
+    }
+    
+    public ValueTask<Result<Void>> PublishAsync<T>(
+        AmqpExchangeName exchangeName,
+        AmqpRoutingKey routingKey,
+        T message,
+        IDictionary<string, object?> headers,
+        CancellationToken cancellationToken)
+        where T : notnull
+    {
         return _connectionFactory.CreateConnectionAsync(cancellationToken)
             .BindAsync(x => CreateChannelAsync(x.Value, cancellationToken))
-            .BindAsync(x => PublishAsync(x.Value, exchangeName, routingKey, message, cancellationToken))
+            .BindAsync(x => PublishAsync(x.Value, exchangeName, routingKey, message, headers, cancellationToken))
             .TapAsync(DisposeChannelAsync);
     }
 
@@ -43,6 +54,23 @@ public class AmqpPublisher : IAmqpPublisher
         TimeSpan waitTimeout,
         CancellationToken cancellationToken) where T : notnull where TOut : notnull
     {
+        return SendAsync<T, TOut>(
+            amqpExchangeName,
+            amqpRoutingKey,
+            message,
+            new Dictionary<string, object?>(),
+            waitTimeout,
+            cancellationToken);
+    }
+
+    public ValueTask<Result<TOut>> SendAsync<T, TOut>(
+        AmqpExchangeName amqpExchangeName,
+        AmqpRoutingKey amqpRoutingKey,
+        T message,
+        IDictionary<string, object?> headers,
+        TimeSpan waitTimeout,
+        CancellationToken cancellationToken) where T : notnull where TOut : notnull
+    {
         return _connectionFactory.CreateConnectionAsync(cancellationToken)
             .BindAsync(x => CreateChannelAsync(x.Value, cancellationToken))
             .BindAsync(x => SendAsync<T, TOut>(
@@ -50,6 +78,7 @@ public class AmqpPublisher : IAmqpPublisher
                 amqpExchangeName,
                 amqpRoutingKey,
                 message,
+                headers,
                 waitTimeout,
                 cancellationToken: cancellationToken));
     }
@@ -88,6 +117,7 @@ public class AmqpPublisher : IAmqpPublisher
         AmqpExchangeName exchangeName,
         AmqpRoutingKey routingKey,
         T message,
+        IDictionary<string, object?> headers,
         TimeSpan waitTimeout,
         CancellationToken cancellationToken)
         where T : notnull
@@ -106,7 +136,7 @@ public class AmqpPublisher : IAmqpPublisher
             {
                 var properties = new BasicProperties();
                 properties.CorrelationId = Guid.NewGuid().ToString();
-                
+                properties.Headers = headers;
                 var replyQueue = await channel.QueueDeclareAsync(
                     Guid.NewGuid().ToString(),
                     exclusive: true,
@@ -153,6 +183,7 @@ public class AmqpPublisher : IAmqpPublisher
         AmqpExchangeName exchangeName,
         AmqpRoutingKey routingKey,
         T message,
+        IDictionary<string, object?> headers,
         CancellationToken cancellationToken)
         where T : notnull
     {
@@ -165,6 +196,8 @@ public class AmqpPublisher : IAmqpPublisher
             try
             {
                 var properties = new BasicProperties();
+                
+                properties.Headers = headers;
                 
                 await channel.BasicPublishAsync(
                     exchangeName.Value,
