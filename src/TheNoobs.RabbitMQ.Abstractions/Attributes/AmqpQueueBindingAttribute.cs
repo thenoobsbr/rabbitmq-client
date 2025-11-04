@@ -4,9 +4,9 @@ namespace TheNoobs.RabbitMQ.Abstractions.Attributes;
 public class AmqpQueueBindingAttribute : Attribute, IAmqpQueueBinding
 {
 
-    public AmqpQueueBindingAttribute(string exchangeName, string routingKey)
+    public AmqpQueueBindingAttribute(string exchangeName, string routingKey, AmqpExchangeType exchangeType = AmqpExchangeType.TOPIC)
     {
-        ExchangeName = exchangeName;
+        ExchangeName = AmqpExchangeName.Create(exchangeName, exchangeType);
         RoutingKey = routingKey;
     }
     

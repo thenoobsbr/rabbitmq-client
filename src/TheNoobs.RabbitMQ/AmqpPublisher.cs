@@ -1,6 +1,7 @@
 ﻿using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using TheNoobs.RabbitMQ.Abstractions;
+using TheNoobs.RabbitMQ.Extensions;
 using TheNoobs.Results;
 using TheNoobs.Results.Abstractions;
 using TheNoobs.Results.Extensions;
@@ -192,7 +193,7 @@ public class AmqpPublisher : IAmqpPublisher
         {
             await channel.ExchangeDeclareAsync(
                 exchangeName.Value,
-                ParseExchangeType(exchangeName.Type),
+                exchangeName.Type.ToRabbitMQExchangeType(),
                 true,
                 cancellationToken: cancellationToken);
             return Void.Value;
@@ -201,17 +202,5 @@ public class AmqpPublisher : IAmqpPublisher
         {
             return new ServerErrorFail("Failed to declare exchange", exception: e);
         }
-    }
-    
-    private static string ParseExchangeType(AmqpExchangeType exchangeType)
-    {
-        return exchangeType switch
-        {
-            AmqpExchangeType.DIRECT => ExchangeType.Direct,
-            AmqpExchangeType.FANOUT => ExchangeType.Fanout,
-            AmqpExchangeType.HEADERS => ExchangeType.Headers,
-            AmqpExchangeType.TOPIC => ExchangeType.Topic,
-            _ => throw new ArgumentOutOfRangeException(nameof(exchangeType), exchangeType, null)
-        };
     }
 }

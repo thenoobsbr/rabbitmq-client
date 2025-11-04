@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using TheNoobs.RabbitMQ.Abstractions;
+using TheNoobs.RabbitMQ.Extensions;
 using TheNoobs.Results;
 using TheNoobs.Results.Abstractions;
 using TheNoobs.Results.Extensions;
@@ -248,7 +249,17 @@ public class AmqpConsumer : AsyncDefaultBasicConsumer, IAsyncDisposable
             
             foreach (var binding in consumerConfiguration.Bindings)
             {
-                await channel.QueueBindAsync(consumerConfiguration.QueueName.Value, binding.ExchangeName, binding.RoutingKey, cancellationToken: cancellationToken);
+                await channel.ExchangeDeclareAsync(
+                    binding.ExchangeName.Value,
+                    binding.ExchangeName.Type.ToRabbitMQExchangeType(),
+                    true,
+                    false,
+                    cancellationToken: cancellationToken);
+                await channel.QueueBindAsync(
+                    consumerConfiguration.QueueName.Value,
+                    binding.ExchangeName,
+                    binding.RoutingKey,
+                    cancellationToken: cancellationToken);
             }
             
             return Void.Value;
